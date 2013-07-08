@@ -18,9 +18,15 @@
 			.color-sep-sample {display:inline-block; position:absolute; right:0; top:2px; bottom:2px; width: 12px; 
 				border-radius: 5px; border: 2px solid #666; background-color:#000;}
 			.color-sep-sample.large {width: 60px; right:8px; bottom:6px;}
-			.sep0 {background: -webkit-linear-gradient(left , black, red);}
-			.sep1 {background: -webkit-linear-gradient(left , black, green);}
-			.sep2 {background: -webkit-linear-gradient(left , black, blue);}
+			.sep0 {background: -webkit-linear-gradient(left , black, red);
+				background: -moz-linear-gradient(left , black, red);
+				background: linear-gradient(left , black, red);}
+			.sep1 {background: -webkit-linear-gradient(left , black, green);
+				background: -moz-linear-gradient(left , black, green);
+				background: linear-gradient(left , black, green);}
+			.sep2 {background: -webkit-linear-gradient(left , black, blue);
+				background: -moz-linear-gradient(left , black, blue);
+				background: -linear-gradient(left , black, blue);}
 		</style>
 		<script src="canvasPaint.js"></script> 
 	</head>
