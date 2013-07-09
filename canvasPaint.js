@@ -7,8 +7,8 @@ paint = {
 
 	drawOnCanvas: function(event) {
 		paint.context.clearRect (0, 0, paint.canvas.width, paint.canvas.height);
-		if (paint.layers.length) {
-			paint.layers[paint.layers.length-1].mouseDrawPoint(event.offsetX, event.offsetY);
+		if (0 <= paint.currentLayer && paint.layers.length > paint.currentLayer) {
+			paint.layers[paint.currentLayer].mouseDrawPoint(event.layerX, event.layerY);
 		}
 
 		for (var i=0; i<paint.layers.length; i++) {
@@ -17,15 +17,15 @@ paint = {
 	},
 
 	mouseDownOnCanvas: function(event) {
-		if (paint.layers.length) {
-			paint.layers[paint.layers.length-1].mouseDown(event.offsetX, event.offsetY);
-			paint.layers[paint.layers.length-1].draw();
+		if (0 <= paint.currentLayer && paint.layers.length > paint.currentLayer) {
+			paint.layers[paint.currentLayer].mouseDown(event.layerX, event.layerY);
+			paint.layers[paint.currentLayer].draw();
 		}
 	},
 
 	mouseUpOnCanvas: function(event) {
-		if (paint.layers.length) {
-			paint.layers[paint.layers.length-1].mouseUp(event.offsetX, event.offsetY);
+		if (0 <= paint.currentLayer && paint.layers.length > paint.currentLayer) {
+			paint.layers[paint.currentLayer].mouseUp(event.layerX, event.layerY);
 		}
 
 		for (var i=0; i<paint.layers.length; i++) {
@@ -45,8 +45,8 @@ paint = {
 				break;
 			case 108: // 'l' new layer
 				if (paint.layers.length) {
-					paint.currentLayer = paint.layers.length;
-					paint.layers.push(new PaintLayer(paint.layers[paint.layers.length-1].drawingSupport));
+					paint.layers.push(new PaintLayer(paint.layers[paint.currentLayer].drawingSupport));
+					paint.currentLayer = paint.layers.length-1;
 				}
 				break;
 			case 112: // 'p' toggle the palette
@@ -63,29 +63,35 @@ paint = {
 colorSep = {
 	colors: [0, 0, 0],
 	mouseDown: function(event) {
-		event.target.setAttribute('x-mouseisdown', 'true');
+		var el = event.target;
+		while (el && -1 == el.tabIndex ) el = el.parentElement;
+		el.setAttribute('x-mouseisdown', 'true');
+		el.setCapture(true);
 		this.mouseMove(event);
 	},
 	mouseMove: function(event) {
 		var el = event.target;
+		while (el && -1 == el.tabIndex ) el = el.parentElement;
 		if (el.getAttribute('x-mouseisdown')) {
-			var colorVal =  Math.floor((255 * event.offsetX) / el.offsetWidth + 0.5);
+			var colorVal =  Math.floor((255 * event.layerX) / el.offsetWidth + 0.5);
 			var index = parseInt(el.className.replace(/[^0-9]*([0-9]).*/, '$1'), 10);
 			var sampleColor = [0,0,0];
 			sampleColor[index] = colorVal;
 			this.colors[index] = colorVal;
-			el.nextElementSibling.style.left = event.offsetX -2 + 'px';
+			el.firstElementChild.style.left = event.layerX -2 + 'px';
 			document.getElementById("color-display"+index).style.backgroundColor = 'rgb(' + sampleColor[0] + ',' +
 				sampleColor[1] + ',' + sampleColor[2] + ')';
 			var color = 'rgb(' + this.colors[0] + ',' + this.colors[1] + ',' + this.colors[2] + ')';
 			document.getElementById("color-display").style.backgroundColor = color;
 			paint.contextConfig.strokeStyle = color;
-			if (0 >= paint.currentLayer) paint.layers[paint.currentLayer].contextConfig.strokeStyle = color;
+			if (0 <= paint.currentLayer) paint.layers[paint.currentLayer].contextConfig.strokeStyle = color;
 			paint.drawOnCanvas({});
 		}
 	},
 	mouseUp: function(event) {
-		event.target.setAttribute('x-mouseisdown', '')
+		var el = event.target;
+		while (el && -1 == el.tabIndex ) el = el.parentElement;
+		el.setAttribute('x-mouseisdown', '')
 	}
 };
 
