@@ -1,3 +1,80 @@
+capture = {
+	initialized: false,
+	element: null,
+	context: null,
+	callback: null,
+	xOffset: -1,
+	yOffset: -1,
+
+	init: function() {
+		if (!this.initialized) {
+			window.onmousemove = function(event) {capture.onMouseMove(event);}
+			window.onmouseup = function(event) {capture.onMouseUp(event);}
+			this.initialized = true;
+		}
+	},
+	set: function(event, element, moveCallback, upCallback, opt_context) {
+		event.preventDefault();	// No selecting while capturing!
+		this.init();
+
+		this.element = element;
+		this.moveCallback = moveCallback;
+		this.upCallback = upCallback;
+		this.context = opt_context || window;
+
+		if (-1 == this.element.className.search(/\bcapturing\b/)) {
+			this.element.className = this.element.className + ' capturing';
+		}
+	},
+	clear: function() {
+		if (this.element && this.element.className) {
+			this.element.className = this.element.className.replace(/\s*\bcapturing\b/, '');
+		}
+		this.element = this.context = this.moveCallback = this.upCallback = null;
+		xOffset = yOffset = -1;
+	},
+	adjustXAndY: function(x, y) {
+		if (-1 == this.xOffset) {
+			this.xOffset = 0;
+			this.yOffset = 0;
+			var runner = this.element;
+			while (runner) {
+				this.xOffset += runner.offsetLeft;
+				this.yOffset += runner.offsetTop;
+				runner = runner.offsetParent;
+			}
+		}
+		x -= this.xOffset;
+		if (0 > x) {
+			x = 0;
+		} else if (x > this.element.offsetWidth) {
+			x = this.element.offsetWidth;
+		}
+		y -= this.yOffset;
+		if (0 > y) {
+			y = 0;
+		} else if (y > this.element.offsetHeight) {
+			y = this.element.offsetHeight;
+		}
+		return [x, y];
+	},
+	onMouseMove: function(event) {
+		if (this.moveCallback) {
+			var coord = this.adjustXAndY(event.layerX, event.layerY);
+			this.moveCallback.call(this.context, this.element, coord[0], coord[1]);
+			event.preventDefault();
+		}
+	},
+	onMouseUp: function(event) {
+		if (this.upCallback) {
+			var coord = this.adjustXAndY(event.layerX, event.layerY);
+			this.upCallback.call(this.context, this.element, coord[0], coord[1]);
+			event.preventDefault();
+		}
+		this.clear();
+	}
+};
+
 paint = {
 	contextConfig: {lineWidth: 1, strokeStyle: "#000"},
 	layers: [],
@@ -5,52 +82,63 @@ paint = {
 	canvas: null,
 	context: null,
 
-	drawOnCanvas: function(event) {
-		paint.context.clearRect (0, 0, paint.canvas.width, paint.canvas.height);
-		if (0 <= paint.currentLayer && paint.layers.length > paint.currentLayer) {
-			paint.layers[paint.currentLayer].mouseDrawPoint(event.layerX, event.layerY);
+	init: function() {
+		window.onkeypress = function(event) {this.keypressOnCanvas(event);}
+		this.palette = document.getElementById("command-palette");
+		this.canvas = document.getElementById("drawing-area");
+		this.context = this.canvas.getContext("2d");
+		if (!this.layers.length) {
+			this.currentLayer = 0;
+			this.layers.push(new PaintLayer(new SmoothCurves()));
 		}
 
-		for (var i=0; i<paint.layers.length; i++) {
-			paint.layers[i].draw();
+		this.canvas.width = document.body.offsetWidth;
+		this.canvas.height = document.body.offsetHeight;
+	},
+	drawOnCanvas: function(canvas, x, y) {
+		this.context.clearRect (0, 0, canvas.width, canvas.height);
+		if (0 <= this.currentLayer && this.layers.length > this.currentLayer) {
+			this.layers[this.currentLayer].mouseDrawPoint(x, y);
+		}
+
+		for (var i=0; i<this.layers.length; i++) {
+			this.layers[i].draw();
 		}
 	},
-
 	mouseDownOnCanvas: function(event) {
-		if (0 <= paint.currentLayer && paint.layers.length > paint.currentLayer) {
-			paint.layers[paint.currentLayer].mouseDown(event.layerX, event.layerY);
-			paint.layers[paint.currentLayer].draw();
+		if (0 <= this.currentLayer && this.layers.length > this.currentLayer) {
+			capture.set(event, this.canvas, this.drawOnCanvas, this.mouseUpOnCanvas, paint);
+			this.layers[this.currentLayer].mouseDown(event.layerX, event.layerY);
+			this.layers[this.currentLayer].draw();
 		}
 	},
-
-	mouseUpOnCanvas: function(event) {
-		if (0 <= paint.currentLayer && paint.layers.length > paint.currentLayer) {
-			paint.layers[paint.currentLayer].mouseUp(event.layerX, event.layerY);
+	mouseUpOnCanvas: function(canvas, x, y) {
+		if (0 <= this.currentLayer && this.layers.length > this.currentLayer) {
+			this.layers[this.currentLayer].mouseUp(x, y);
 		}
 
-		for (var i=0; i<paint.layers.length; i++) {
-			paint.layers[i].draw();
+		for (var i=0; i<this.layers.length; i++) {
+			this.layers[i].draw();
 		}
 	},
-
 	keypressOnCanvas: function(event) {
 		switch (event.charCode) {
 			case 49: // '1' new SmoothCurves
-				paint.currentLayer = paint.layers.length;
-				paint.layers.push(new PaintLayer(smoothCurves));
+				this.currentLayer = this.layers.length;
+				this.layers.push(new PaintLayer(smoothCurves));
 				break;
 			case 50: // '2' new StraightLines
-				paint.currentLayer = paint.layers.length;
-				paint.layers.push(new PaintLayer(straightLines));
+				this.currentLayer = this.layers.length;
+				this.layers.push(new PaintLayer(straightLines));
 				break;
 			case 108: // 'l' new layer
-				if (paint.layers.length) {
-					paint.layers.push(new PaintLayer(paint.layers[paint.currentLayer].drawingSupport));
-					paint.currentLayer = paint.layers.length-1;
+				if (this.layers.length) {
+					this.layers.push(new PaintLayer(this.layers[this.currentLayer].drawingSupport));
+					this.currentLayer = this.layers.length-1;
 				}
 				break;
 			case 112: // 'p' toggle the palette
-				paint.palette.className = paint.palette.className.replace(/(\s*hidden)|($)/, function(match) {
+				this.palette.className = this.palette.className.replace(/(\s*hidden)|($)/, function(match) {
 					if (match && match.length) return '';
 					return ' hidden';
 				})
@@ -64,34 +152,26 @@ colorSep = {
 	colors: [0, 0, 0],
 	mouseDown: function(event) {
 		var el = event.target;
-		while (el && -1 == el.tabIndex ) el = el.parentElement;
-		el.setAttribute('x-mouseisdown', 'true');
-		el.setCapture(true);
-		this.mouseMove(event);
+		capture.set(event, el, colorSep.mouseMove, null, colorSep);
+		this.mouseMove(el, event.layerX, event.layerY);
 	},
-	mouseMove: function(event) {
-		var el = event.target;
-		while (el && -1 == el.tabIndex ) el = el.parentElement;
-		if (el.getAttribute('x-mouseisdown')) {
-			var colorVal =  Math.floor((255 * event.layerX) / el.offsetWidth + 0.5);
-			var index = parseInt(el.className.replace(/[^0-9]*([0-9]).*/, '$1'), 10);
-			var sampleColor = [0,0,0];
-			sampleColor[index] = colorVal;
-			this.colors[index] = colorVal;
-			el.firstElementChild.style.left = event.layerX -2 + 'px';
-			document.getElementById("color-display"+index).style.backgroundColor = 'rgb(' + sampleColor[0] + ',' +
-				sampleColor[1] + ',' + sampleColor[2] + ')';
-			var color = 'rgb(' + this.colors[0] + ',' + this.colors[1] + ',' + this.colors[2] + ')';
-			document.getElementById("color-display").style.backgroundColor = color;
-			paint.contextConfig.strokeStyle = color;
-			if (0 <= paint.currentLayer) paint.layers[paint.currentLayer].contextConfig.strokeStyle = color;
-			paint.drawOnCanvas({});
+	mouseMove: function(el, x, y) {
+		if (el.offsetWidth < x) {
+			debugger;
 		}
-	},
-	mouseUp: function(event) {
-		var el = event.target;
-		while (el && -1 == el.tabIndex ) el = el.parentElement;
-		el.setAttribute('x-mouseisdown', '')
+		var colorVal =  Math.floor((255 * x) / el.offsetWidth + 0.5);
+		var index = parseInt(el.className.replace(/[^0-9]*([0-9]).*/, '$1'), 10);
+		var sampleColor = [0,0,0];
+		sampleColor[index] = colorVal;
+		this.colors[index] = colorVal;
+		el.firstElementChild.style.left = x -2 + 'px';
+		document.getElementById("color-display"+index).style.backgroundColor = 'rgb(' + sampleColor[0] + ',' +
+			sampleColor[1] + ',' + sampleColor[2] + ')';
+		var color = 'rgb(' + this.colors[0] + ',' + this.colors[1] + ',' + this.colors[2] + ')';
+		document.getElementById("color-display").style.backgroundColor = color;
+		paint.contextConfig.strokeStyle = color;
+		if (0 <= paint.currentLayer) paint.layers[paint.currentLayer].contextConfig.strokeStyle = color;
+		paint.drawOnCanvas({});
 	}
 };
 
@@ -235,7 +315,7 @@ SmoothCurves.prototype.mouseDrawPoint = function(paintLayer, x, y) {
 		paintLayer.lastPoints.push(x, y);
 		console.log("lineTo " + x + " " +y);
 	}
-}
+};
 
 smoothCurves = new SmoothCurves();
 
@@ -262,12 +342,13 @@ StraightLines.prototype.mouseDrawPoint = function(paintLayer, x, y) {
 	} else {
 		paintLayer.addCommand(paintLayer.context.lineTo, [x, y]);
 	}
-}
+};
 
 straightLines = new StraightLines();
 
 
 function paintInit() {
+	window.onkeypress = function(event) {paint.keypressOnCanvas(event);}
 	paint.palette = document.getElementById("command-palette");
 	paint.canvas = document.getElementById("drawing-area");
 	paint.context = paint.canvas.getContext("2d");

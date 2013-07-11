@@ -4,17 +4,18 @@
 		<title>Canvas Paint</title>
 		<style>
 			body {position:absolute; top:0; right:0; bottom:0; left:0;}
-			.drawing-area {position:absolute; top:0; right:0; bottom:0; left:0;}
+			.drawing-area {position:absolute; top:0; right:0; bottom:0; left:0; border-style:none !important;}
 			.command-palette {position:absolute; top: 50px; right: 50px; bottom: 50px; left: 50px; z-index: 2;
-				border-radius: 20px; border: 3px ridge #666; background-color: #999;}
+				border-radius: 20px; border: 2px solid #666; background-color: #999;}
 			.hidden {display: none;}
 			.label {margin-top:5px; margin-left:10px;}
 			.color-table {position:relative;}
 			.color-sep-frame {position:relative; margin-left:10px; margin-right:80px;}
 			.color-sep-container {display:inline-block; width:100%; height:20px; position: relative;} 
-			.color-sep-bar {position: absolute; left:2px; top:5px; right:20px; bottom:5px; cursor:default;} 
+			.color-sep-bar {position: absolute; left:0; top:0; right:20px; bottom:0; margin: 5px 2px;
+				cursor:default; padding: 2px;} 
 			.color-sep-slider {position: absolute; left:-2px; top:-2px; bottom:-2px; width: 1px;
-				border-radius: 3px; border: 2px ridge #666} 
+				border-radius: 3px; border: 2px ridge #666; pointer-events: none;} 
 			.color-sep-sample {display:inline-block; position:absolute; right:0; top:2px; bottom:2px; width: 12px; 
 				border-radius: 5px; border: 2px solid #666; background-color:#000;}
 			.color-sep-sample.large {width: 60px; right:8px; bottom:6px;}
@@ -27,6 +28,7 @@
 			.sep2 {background: -webkit-linear-gradient(left , black, blue);
 				background: -moz-linear-gradient(left , black, blue);
 				background: -linear-gradient(left , black, blue);}
+			.capturing {border: 1px dotted #aaa;}
 		</style>
 		<script src="canvasPaint.js"></script> 
 	</head>
@@ -38,25 +40,19 @@
 			<div class="color-table">
 				<div class="color-sep-frame">
 					<div class="color-sep-container">
-						<div class="color-sep-bar sep0" tabindex="3" x-mouseisdown=""
-							onmousedown="colorSep.mouseDown(event);" onmousemove="colorSep.mouseMove(event);"
-							onmouseup="colorSep.mouseUp(event);">
+						<div class="color-sep-bar sep0" tabindex="3" onmousedown="colorSep.mouseDown(event);">
 							<div class="color-sep-slider"></div>
 						</div>
 						<div id="color-display0" class="color-sep-sample"></div>
 					</div>
 					<div class="color-sep-container">
-						<div class="color-sep-bar sep1" tabindex="4" x-mouseisdown="" 
-							onmousedown="colorSep.mouseDown(event);" onmousemove="colorSep.mouseMove(event);"
-							onmouseup="colorSep.mouseUp(event);">
+						<div class="color-sep-bar sep1" tabindex="4" onmousedown="colorSep.mouseDown(event);">
 							<div class="color-sep-slider"></div>
 						</div>
 						<div id="color-display1" class="color-sep-sample"></div>
 					</div>
 					<div class="color-sep-container">
-						<div class="color-sep-bar sep2" tabindex="5" x-mouseisdown="" 
-							onmousedown="colorSep.mouseDown(event);" onmousemove="colorSep.mouseMove(event);"
-							onmouseup="colorSep.mouseUp(event);">
+						<div class="color-sep-bar sep2" tabindex="5" onmousedown="colorSep.mouseDown(event);">
 								<div class="color-sep-slider"></div>
 						</div>
 						<div id="color-display2" class="color-sep-sample"></div>
@@ -66,9 +62,8 @@
 			</div>
 		</div>
 		<div class="draging-row">
-			<canvas id="drawing-area" class="drawing-area" onmousemove="paint.drawOnCanvas(event);"
-					onmouseup="paint.mouseUpOnCanvas(event);" onmousedown="paint.mouseDownOnCanvas(event);"
-					tabindex="1" onkeypress="paint.keypressOnCanvas(event);"></canvas>
+			<canvas id="drawing-area" class="drawing-area" onmousedown="paint.mouseDownOnCanvas(event);"
+					tabindex="1"></canvas>
 		</div>
 		</form>
 	</body>
