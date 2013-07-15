@@ -1,36 +1,46 @@
+/**********
+Tested events
+	onmousemove
+	onmouseup
+**********/
 capture = {
-	initialized: false,
 	element: null,
-	context: null,
-	callback: null,
+	handlers: {},
 	xOffset: -1,
 	yOffset: -1,
 
-	init: function() {
-		if (!this.initialized) {
-			window.onmousemove = function(event) {capture.onMouseMove(event);}
-			window.onmouseup = function(event) {capture.onMouseUp(event);}
-			this.initialized = true;
-		}
-	},
-	set: function(event, element, moveCallback, upCallback, opt_context) {
+	set: function(event, element, handlers, opt_context) {
 		event.preventDefault();	// No selecting while capturing!
-		this.init();
+
+		var context = opt_context || window;
+
+		// hook all on... functions
+		this.handlers = handlers;
+
+		var onmouseupSet = false;
+		for (var i in handlers) {
+			window['on' + i] = function(ev) {capture.eventWrap(ev, context);};
+			if ('mouseup' == i) onmouseupSet = true;
+		}
+		if (!onmouseupSet) {
+			window.onmouseup = function(event) {capture.eventWrap(event);}
+			this.handlers['mouseup'] = true;
+		}
 
 		this.element = element;
-		this.moveCallback = moveCallback;
-		this.upCallback = upCallback;
-		this.context = opt_context || window;
 
 		if (-1 == this.element.className.search(/\bcapturing\b/)) {
 			this.element.className = this.element.className + ' capturing';
 		}
 	},
 	clear: function() {
+		for (var i in this.handlers) window[i] = null;
+		this.handlers = {};
+
 		if (this.element && this.element.className) {
 			this.element.className = this.element.className.replace(/\s*\bcapturing\b/, '');
 		}
-		this.element = this.context = this.moveCallback = this.upCallback = null;
+		this.element = null;
 		xOffset = yOffset = -1;
 	},
 	adjustXAndY: function(x, y) {
@@ -58,20 +68,12 @@ capture = {
 		}
 		return [x, y];
 	},
-	onMouseMove: function(event) {
-		if (this.moveCallback) {
-			var coord = this.adjustXAndY(event.layerX, event.layerY);
-			this.moveCallback.call(this.context, this.element, coord[0], coord[1]);
-			event.preventDefault();
-		}
-	},
-	onMouseUp: function(event) {
-		if (this.upCallback) {
-			var coord = this.adjustXAndY(event.layerX, event.layerY);
-			this.upCallback.call(this.context, this.element, coord[0], coord[1]);
-			event.preventDefault();
-		}
-		this.clear();
+	eventWrap: function(event, opt_context) {
+		var coord = ('layerX' in event) ? this.adjustXAndY(event.layerX, event.layerY) : [0, 0];
+		if (opt_context) this.handlers[event.type].call(opt_context, this.element, coord[0], coord[1]);
+		event.preventDefault();
+
+		if ('mouseup' == event.type) this.clear();
 	}
 };
 
@@ -95,6 +97,17 @@ paint = {
 		this.canvas.width = document.body.offsetWidth;
 		this.canvas.height = document.body.offsetHeight;
 	},
+	mouseDownOnCanvas: function(event) {
+		if (0 <= this.currentLayer && this.layers.length > this.currentLayer) {
+			capture.set(event, this.canvas, {mousemove: this.drawOnCanvas, mouseup: this.mouseUpOnCanvas}, paint);
+			this.layers[this.currentLayer].mouseDown(event.layerX, event.layerY);
+			this.layers[this.currentLayer].draw();
+		}
+	},
+	paletteMouseDown: function(event) {
+		// Don't let the event propigate to the canvas!
+		event.stopPropagation();
+	},
 	drawOnCanvas: function(canvas, x, y) {
 		this.context.clearRect (0, 0, canvas.width, canvas.height);
 		if (0 <= this.currentLayer && this.layers.length > this.currentLayer) {
@@ -103,13 +116,6 @@ paint = {
 
 		for (var i=0; i<this.layers.length; i++) {
 			this.layers[i].draw();
-		}
-	},
-	mouseDownOnCanvas: function(event) {
-		if (0 <= this.currentLayer && this.layers.length > this.currentLayer) {
-			capture.set(event, this.canvas, this.drawOnCanvas, this.mouseUpOnCanvas, paint);
-			this.layers[this.currentLayer].mouseDown(event.layerX, event.layerY);
-			this.layers[this.currentLayer].draw();
 		}
 	},
 	mouseUpOnCanvas: function(canvas, x, y) {
@@ -144,6 +150,7 @@ paint = {
 				})
 				break;
 		}
+		event.stopPropagation();
 	}
 };
 
@@ -152,7 +159,7 @@ colorSep = {
 	colors: [0, 0, 0],
 	mouseDown: function(event) {
 		var el = event.target;
-		capture.set(event, el, colorSep.mouseMove, null, colorSep);
+		capture.set(event, el, {mousemove: colorSep.mouseMove}, colorSep);
 		this.mouseMove(el, event.layerX, event.layerY);
 	},
 	mouseMove: function(el, x, y) {
