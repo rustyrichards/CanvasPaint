@@ -62,6 +62,16 @@
 					</div>
 					<div id="color-display" class="color-sep-sample large"></div>
 				</div>
+				<div
+					<label class="label" for="line_width">Line Width: </label>
+					<input id="line_width" type="number" min="1" max="50" value ="1" onchange="lineStyle.widthChanged(event);"/>
+					<label class="label" for="line_cap">Line Cap: </label>
+					<select id="line_cap" value="butt" onchange="lineStyle.capChanged(event);">
+						<option value="butt">butt</option>
+						<option value="round">round</option>
+						<option value="square">square</option>
+					</select>
+				</div>
 			</div>
 		</div>
 		<div class="draging-row">

@@ -44,27 +44,29 @@ capture = {
 		xOffset = yOffset = -1;
 	},
 	adjustXAndY: function(x, y) {
-		if (-1 == this.xOffset) {
-			this.xOffset = 0;
-			this.yOffset = 0;
-			var runner = this.element;
-			while (runner) {
-				this.xOffset += runner.offsetLeft;
-				this.yOffset += runner.offsetTop;
-				runner = runner.offsetParent;
+		if (this.element) {
+			if (-1 == this.xOffset) {
+				this.xOffset = 0;
+				this.yOffset = 0;
+				var runner = this.element;
+				while (runner) {
+					this.xOffset += runner.offsetLeft;
+					this.yOffset += runner.offsetTop;
+					runner = runner.offsetParent;
+				}
 			}
-		}
-		x -= this.xOffset;
-		if (0 > x) {
-			x = 0;
-		} else if (x > this.element.offsetWidth) {
-			x = this.element.offsetWidth;
-		}
-		y -= this.yOffset;
-		if (0 > y) {
-			y = 0;
-		} else if (y > this.element.offsetHeight) {
-			y = this.element.offsetHeight;
+			x -= this.xOffset;
+			if (0 > x) {
+				x = 0;
+			} else if (x > this.element.offsetWidth) {
+				x = this.element.offsetWidth;
+			}
+			y -= this.yOffset;
+			if (0 > y) {
+				y = 0;
+			} else if (y > this.element.offsetHeight) {
+				y = this.element.offsetHeight;
+			}
 		}
 		return [x, y];
 	},
@@ -78,7 +80,7 @@ capture = {
 };
 
 paint = {
-	contextConfig: {lineWidth: 1, strokeStyle: "#000"},
+	contextConfig: {lineWidth: 1, strokeStyle: "#000", lineCap: "butt"},
 	layers: [],
 	currentLayer: -1,
 	canvas: null,
@@ -96,6 +98,13 @@ paint = {
 
 		this.canvas.width = document.body.offsetWidth;
 		this.canvas.height = document.body.offsetHeight;
+	},
+	redraw: function(opt_skipClear) {
+		if (!opt_skipClear) this.context.clearRect (0, 0, this.canvas.width, this.canvas.height);
+
+		for (var i=0; i<this.layers.length; i++) {
+			this.layers[i].draw();
+		}
 	},
 	mouseDownOnCanvas: function(event) {
 		if (0 <= this.currentLayer && this.layers.length > this.currentLayer) {
@@ -178,7 +187,23 @@ colorSep = {
 		document.getElementById("color-display").style.backgroundColor = color;
 		paint.contextConfig.strokeStyle = color;
 		if (0 <= paint.currentLayer) paint.layers[paint.currentLayer].contextConfig.strokeStyle = color;
-		paint.drawOnCanvas({});
+		paint.redraw(true);
+	}
+};
+
+// handlers for line styles
+lineStyle = {
+	widthChanged: function(event) {
+		var el = event.target;
+		paint.contextConfig.lineWidth = el.value;
+		if (0 <= paint.currentLayer) paint.layers[paint.currentLayer].contextConfig.lineWidth = paint.contextConfig.lineWidth;
+		paint.redraw();
+	},
+	capChanged: function(event) {
+		var el = event.target;
+		paint.contextConfig.lineCap = el.value;
+		if (0 <= paint.currentLayer) paint.layers[paint.currentLayer].contextConfig.lineCap = paint.contextConfig.lineCap;
+		paint.redraw();
 	}
 };
 
