@@ -6,11 +6,14 @@ Tested events
 capture = {
 	element: null,
 	handlers: {},
-	xOffset: -1,
-	yOffset: -1,
+	xOffset: 0,
+	yOffset: 0,
 
 	set: function(event, element, handlers, opt_context) {
 		event.preventDefault();	// No selecting while capturing!
+
+		this.xOffset = event.screenX - event.layerX;
+		this.yOffset = event.screenY - event.layerY;
 
 		var context = opt_context || window;
 
@@ -23,8 +26,13 @@ capture = {
 			if ('mouseup' == i) onmouseupSet = true;
 		}
 		if (!onmouseupSet) {
-			window.onmouseup = function(event) {capture.eventWrap(event);}
+			window.onmouseup = function(event) {capture.eventWrap(event);};
 			this.handlers['mouseup'] = true;
+		}
+		if (!this.handlers['contextmenu']) {
+			// Prevent the context menu
+			window.oncontextmenu =  function (evt) {evt.preventDefault();};
+			this.handlers['contextmenu'] = true;
 		}
 
 		this.element = element;
@@ -45,16 +53,6 @@ capture = {
 	},
 	adjustXAndY: function(x, y) {
 		if (this.element) {
-			if (-1 == this.xOffset) {
-				this.xOffset = 0;
-				this.yOffset = 0;
-				var runner = this.element;
-				while (runner) {
-					this.xOffset += runner.offsetLeft;
-					this.yOffset += runner.offsetTop;
-					runner = runner.offsetParent;
-				}
-			}
 			x -= this.xOffset;
 			if (0 > x) {
 				x = 0;
@@ -71,11 +69,20 @@ capture = {
 		return [x, y];
 	},
 	eventWrap: function(event, opt_context) {
-		var coord = ('layerX' in event) ? this.adjustXAndY(event.layerX, event.layerY) : [0, 0];
-		if (opt_context) this.handlers[event.type].call(opt_context, this.element, coord[0], coord[1]);
+		var coord = ('layerX' in event) ? this.adjustXAndY(event.screenX, event.screenY) : [0, 0];
+		var button = event.button || 0;
+		try {
+			if (opt_context) this.handlers[event.type].call(opt_context, this.element, button, coord[0], coord[1]);
+		} catch (e) {
+			// If the functions have gone away, clear the capture!
+			this.clear();
+			return;
+		}
 		event.preventDefault();
 
-		if ('mouseup' == event.type) this.clear();
+		if ('mouseup' == event.type && 0 == event.button) {
+			this.clear();
+		}
 	}
 };
 
@@ -108,28 +115,31 @@ paint = {
 	},
 	mouseDownOnCanvas: function(event) {
 		if (0 <= this.currentLayer && this.layers.length > this.currentLayer) {
-			capture.set(event, this.canvas, {mousemove: this.drawOnCanvas, mouseup: this.mouseUpOnCanvas}, paint);
-			this.layers[this.currentLayer].mouseDown(event.layerX, event.layerY);
+			if (0 == event.button) {
+				capture.set(event, this.canvas, {mousemove: this.drawOnCanvas, mouseup: this.mouseUpOnCanvas}, paint);
+			}
+			this.layers[this.currentLayer].mouseDown(event.button, event.layerX, event.layerY);
 			this.layers[this.currentLayer].draw();
+			event.preventDefault();
 		}
 	},
 	paletteMouseDown: function(event) {
 		// Don't let the event propigate to the canvas!
 		event.stopPropagation();
 	},
-	drawOnCanvas: function(canvas, x, y) {
+	drawOnCanvas: function(canvas, button, x, y) {
 		this.context.clearRect (0, 0, canvas.width, canvas.height);
 		if (0 <= this.currentLayer && this.layers.length > this.currentLayer) {
-			this.layers[this.currentLayer].mouseDrawPoint(x, y);
+			this.layers[this.currentLayer].mouseDrawPoint(button, x, y);
 		}
 
 		for (var i=0; i<this.layers.length; i++) {
 			this.layers[i].draw();
 		}
 	},
-	mouseUpOnCanvas: function(canvas, x, y) {
+	mouseUpOnCanvas: function(canvas, button, x, y) {
 		if (0 <= this.currentLayer && this.layers.length > this.currentLayer) {
-			this.layers[this.currentLayer].mouseUp(x, y);
+			this.layers[this.currentLayer].mouseUp(button, x, y);
 		}
 
 		for (var i=0; i<this.layers.length; i++) {
@@ -166,22 +176,34 @@ paint = {
 // handlers for the color separations
 colorSep = {
 	colors: [0, 0, 0],
+	noReinter: false,
 	mouseDown: function(event) {
 		var el = event.target;
 		capture.set(event, el, {mousemove: colorSep.mouseMove}, colorSep);
 		this.mouseMove(el, event.layerX, event.layerY);
 	},
-	mouseMove: function(el, x, y) {
+	mouseMove: function(el, button, x, y) {
 		if (el.offsetWidth < x) {
 			debugger;
 		}
-		var colorVal =  Math.floor((255 * x) / el.offsetWidth + 0.5);
+		var colorVal =  Math.floor((255.99 * x) / el.offsetWidth);
 		var index = parseInt(el.className.replace(/[^0-9]*([0-9]).*/, '$1'), 10);
 		var sampleColor = [0,0,0];
-		sampleColor[index] = colorVal;
-		this.colors[index] = colorVal;
 		el.firstElementChild.style.left = x -2 + 'px';
-		document.getElementById("color-display"+index).style.backgroundColor = 'rgb(' + sampleColor[0] + ',' +
+		var colordisplay = document.getElementById("color-display"+index);
+		colordisplay.value = colorVal;
+		this.adjustColor(el, colorVal, index);
+	},
+	colorSepChanged: function(event) {
+		var el = event.target;
+		var colorVal =  el.value;
+		var index = parseInt(el.id.replace(/[^0-9]*([0-9]).*/, '$1'), 10);
+		event.preventDefault();
+	},
+	adjustColor: function(el, colorVal, index) {
+		var sampleColor = [0,0,0];
+		sampleColor[index] = this.colors[index] = colorVal;
+		el.style.backgroundColor = 'rgb(' + sampleColor[0] + ',' +
 			sampleColor[1] + ',' + sampleColor[2] + ')';
 		var color = 'rgb(' + this.colors[0] + ',' + this.colors[1] + ',' + this.colors[2] + ')';
 		document.getElementById("color-display").style.backgroundColor = color;
@@ -265,20 +287,20 @@ PaintLayer.prototype.replaceCoordinates = function(coordinates) {
 /**
  * drawing has pairs of drawing commands and coordinates
  */
-PaintLayer.prototype.mouseDrawPoint = function(x, y) {
-	if (this.drawingOn) this.drawingSupport.mouseDrawPoint(this, x, y);
+PaintLayer.prototype.mouseDrawPoint = function(button, x, y) {
+	if (this.drawingOn) this.drawingSupport.mouseDrawPoint(this, button, x, y);
 };
 
-PaintLayer.prototype.mouseDown = function(x, y) {
+PaintLayer.prototype.mouseDown = function(button, x, y) {
 	this.drawingOn = true;
 
-	this.drawingSupport.mouseDown(this, x, y);
+	this.drawingSupport.mouseDown(this, button, x, y);
 };
 
-PaintLayer.prototype.mouseUp = function(x, y) {
-	this.drawingOn = false;
+PaintLayer.prototype.mouseUp = function(button, x, y) {
+	if (0 == button) this.drawingOn = false;
 
-	this.drawingSupport.mouseUp(this, x, y);
+	this.drawingSupport.mouseUp(this, button, x, y);
 };
 
 /**
@@ -307,16 +329,16 @@ SmoothCurves.prototype.startPaintLayer = function(paintLayer) {
 	paintLayer.lastPoints = [-1, -1, -1, -1];
 };
 
-SmoothCurves.prototype.mouseDown = function(paintLayer, x, y) {
+SmoothCurves.prototype.mouseDown = function(paintLayer, button, x, y) {
 	// First point do a moveTo
 	paintLayer.lastPoints = [-1, -1, x, y];
 	paintLayer.addCommand(paintLayer.context.moveTo, paintLayer.lastPoints.slice(2));
 };
 
-SmoothCurves.prototype.mouseUp = function(paintLayer, x, y) {
+SmoothCurves.prototype.mouseUp = function(paintLayer, button, x, y) {
 };
 
-SmoothCurves.prototype.mouseDrawPoint = function(paintLayer, x, y) {
+SmoothCurves.prototype.mouseDrawPoint = function(paintLayer, button, x, y) {
 	// If the distance from the first to the second point is much grater than the distance from the first to the third
 	// point then we have an acute angle, so it should be be kept sharp; don't do a spline curve.
 	var magnitude01 = Math.sqrt(Math.pow(paintLayer.lastPoints[0] - paintLayer.lastPoints[2], 2) + 
@@ -359,17 +381,20 @@ StraightLines = function() {};
 StraightLines.prototype.startPaintLayer = function(paintLayer) {
 };
 
-StraightLines.prototype.mouseDown = function(paintLayer, x, y) {
+StraightLines.prototype.mouseDown = function(paintLayer, button, x, y) {
 	// First point add a moveTo all other times add a lineTo
-	if (!paintLayer.cmds.length) paintLayer.addCommand(paintLayer.context.moveTo, [x, y]);
-	paintLayer.addCommand(paintLayer.context.lineTo, [x, y]);
+	if (0 == button) {
+		paintLayer.addCommand(paintLayer.context.moveTo, [x, y]);
+	} else {
+		paintLayer.addCommand(paintLayer.context.lineTo, [x, y]);
+	}
 };
 
-StraightLines.prototype.mouseUp = function(paintLayer, x, y) {
+StraightLines.prototype.mouseUp = function(paintLayer, button, x, y) {
 };
 
-StraightLines.prototype.mouseDrawPoint = function(paintLayer, x, y) {
-	if (paintLayer.cmds[paintLayer.cmds.length -1] == paintLayer.context.lineTo) {
+StraightLines.prototype.mouseDrawPoint = function(paintLayer, button, x, y) {
+	if (paintLayer.cmds[paintLayer.cmds.length - 1] == paintLayer.context.lineTo) {
 		paintLayer.replaceCoordinates([x, y]);	// Replace the last line
 	} else {
 		paintLayer.addCommand(paintLayer.context.lineTo, [x, y]);

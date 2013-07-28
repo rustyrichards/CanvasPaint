@@ -12,13 +12,13 @@
 			.label {margin-top:5px; margin-left:10px;}
 			.color-table {position:relative;}
 			.color-sep-frame {position:relative; margin-left:10px; margin-right:80px;}
-			.color-sep-container {display:inline-block; width:100%; height:20px; position: relative;} 
-			.color-sep-bar {position: absolute; left:0; top:0; right:20px; bottom:0; margin: 5px 2px;
+			.color-sep-container {display:inline-block; width:100%; height:30px; position: relative;} 
+			.color-sep-bar {position: absolute; left:0; top:0; right:54px; bottom:0; margin: 5px 2px;
 				cursor:default; padding: 2px;} 
 			.color-sep-slider {position: absolute; left:-2px; top:-2px; bottom:-2px; width: 1px;
 				border-radius: 3px; border: 2px ridge #666; pointer-events: none;} 
-			.color-sep-sample {display:inline-block; position:absolute; right:0; top:2px; bottom:2px; width: 12px; 
-				border-radius: 5px; border: 2px solid #666; background-color:#000;}
+			.color-sep-sample {display:inline-block; position:absolute; right:0; top:0px; bottom:0px; width: 45px; 
+				border-radius: 2px; border: 2px solid #666; background-color:#000; color: white;}
 			.color-sep-sample.large {width: 60px; right:8px; bottom:6px;}
 			.sep0 {background: -webkit-linear-gradient(left , black, red);
 				background: -moz-linear-gradient(left , black, red);
@@ -36,7 +36,7 @@
 	<body onload="paintInit();">
 		<form>
 		<div id="command-palette" class="command-palette hidden" tabindex="2"
-			onkeypress="paint.keypressOnCanvas(event);" onmousedown="paint.paletteMouseDown(event);">
+			onkeyup="paint.keypressOnCanvas(event);" onmousedown="paint.paletteMouseDown(event);">
 			<div class="inner">
 				<div class="label">Color:</div>
 				<div class="color-table">
@@ -45,19 +45,22 @@
 							<div class="color-sep-bar sep0" tabindex="3" onmousedown="colorSep.mouseDown(event);">
 								<div class="color-sep-slider"></div>
 							</div>
-							<div id="color-display0" class="color-sep-sample"></div>
+							<input id="color-display0" class="color-sep-sample" type="number" min="0" max="255" value ="1"
+							oninput="colorSep.colorSepChanged(event);"/>
 						</div>
 						<div class="color-sep-container">
 							<div class="color-sep-bar sep1" tabindex="4" onmousedown="colorSep.mouseDown(event);">
 								<div class="color-sep-slider"></div>
 							</div>
-							<div id="color-display1" class="color-sep-sample"></div>
+							<input id="color-display1" class="color-sep-sample" type="number" min="0" max="255" value ="1"
+							oninput="colorSep.colorSepChanged(event);"/>
 						</div>
 						<div class="color-sep-container">
 							<div class="color-sep-bar sep2" tabindex="5" onmousedown="colorSep.mouseDown(event);">
 									<div class="color-sep-slider"></div>
 							</div>
-							<div id="color-display2" class="color-sep-sample"></div>
+							<input id="color-display2" class="color-sep-sample" type="number" min="0" max="255" value ="1"
+							oninput="colorSep.colorSepChanged(event);"/>
 						</div>
 					</div>
 					<div id="color-display" class="color-sep-sample large"></div>
@@ -66,7 +69,7 @@
 					<label class="label" for="line_width">Line Width: </label>
 					<input id="line_width" type="number" min="1" max="50" value ="1" onchange="lineStyle.widthChanged(event);"/>
 					<label class="label" for="line_cap">Line Cap: </label>
-					<select id="line_cap" value="butt" onchange="lineStyle.capChanged(event);">
+					<select id="line_cap" value="butt" oninput="lineStyle.capChanged(event);">
 						<option value="butt">butt</option>
 						<option value="round">round</option>
 						<option value="square">square</option>
