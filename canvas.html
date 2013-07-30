@@ -33,7 +33,7 @@
 		</style>
 		<script src="canvasPaint.js"></script> 
 	</head>
-	<body onload="paintInit();">
+	<body onload="paintInit();" onbeforeunload="paint.save();">
 		<form>
 		<div id="command-palette" class="command-palette hidden" tabindex="2"
 			onkeyup="paint.keypressOnCanvas(event);" onmousedown="paint.paletteMouseDown(event);">

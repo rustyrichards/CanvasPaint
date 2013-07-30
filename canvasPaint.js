@@ -3,6 +3,14 @@ Tested events
 	onmousemove
 	onmouseup
 **********/
+function getType(obj) {
+	try {
+	    return obj.constructor.name;
+	} catch(e) {
+		return '[not an object]';
+	}
+};
+
 capture = {
 	element: null,
 	handlers: {},
@@ -170,6 +178,34 @@ paint = {
 				break;
 		}
 		event.stopPropagation();
+	},
+	setContextConfig: function(cfg, opt_skipErase) {
+		for (var i in cfg) {
+			this.contextConfig[i] = cfg[i];
+			if (0 <= this.currentLayer) {this.layers[this.currentLayer].contextConfig[i] = cfg[i]}
+		}
+		this.redraw(opt_skipErase);
+	},
+	save: function() {
+		var temp = [];
+		for (var i=0; i<this.layers.length; i++) temp.push(this.layers[i].toSaveObj());
+
+		window.localStorage.setItem('paint', JSON.stringify(temp));
+	},
+	load: function() {
+		var objStr = window.localStorage.getItem('paint');
+		if (objStr) {
+			var array = JSON.parse(objStr);
+			if (array && array.length) {
+				this.layers = [];
+				for (var i=0; i<array.length; i++) {
+					this.layers.push(new PaintLayer(array[i]));
+				}
+				this.currentLayer = array.length - 1;
+
+				this.redraw(true);
+			}
+		}
 	}
 };
 
@@ -207,32 +243,24 @@ colorSep = {
 			sampleColor[1] + ',' + sampleColor[2] + ')';
 		var color = 'rgb(' + this.colors[0] + ',' + this.colors[1] + ',' + this.colors[2] + ')';
 		document.getElementById("color-display").style.backgroundColor = color;
-		paint.contextConfig.strokeStyle = color;
-		if (0 <= paint.currentLayer) paint.layers[paint.currentLayer].contextConfig.strokeStyle = color;
-		paint.redraw(true);
+		paint.setContextConfig({strokeStyle: color}, true);
 	}
 };
 
 // handlers for line styles
 lineStyle = {
 	widthChanged: function(event) {
-		var el = event.target;
-		paint.contextConfig.lineWidth = el.value;
-		if (0 <= paint.currentLayer) paint.layers[paint.currentLayer].contextConfig.lineWidth = paint.contextConfig.lineWidth;
-		paint.redraw();
+		paint.setContextConfig({lineWidth: event.target.value});
 	},
 	capChanged: function(event) {
-		var el = event.target;
-		paint.contextConfig.lineCap = el.value;
-		if (0 <= paint.currentLayer) paint.layers[paint.currentLayer].contextConfig.lineCap = paint.contextConfig.lineCap;
-		paint.redraw();
+		paint.setContextConfig({lineCap: event.target.value});
 	}
 };
 
 /**
  *
  */
-function PaintLayer(drawingSupport, opt_context, opt_contextConfig) {
+function PaintLayer(drawingSupportOrSave, opt_context, opt_contextConfig) {
 	this.drawingOn = false;
 
 	/**
@@ -250,14 +278,25 @@ function PaintLayer(drawingSupport, opt_context, opt_contextConfig) {
 	 */
 	this.lastPoints = [];
 
-	this.drawingSupport = drawingSupport;
+	if (drawingSupportOrSave.cmds && drawingSupportOrSave.coordinates) {
+		// Convert the strings back to function pointers
+		var cmds = drawingSupportOrSave.cmds;
+		for (var i=0; i<cmds.length; i++) this.cmds.push(paint.context[cmds[i]]);
+
+		this.coordinates = drawingSupportOrSave.coordinates;
+		this.lastPoints = drawingSupportOrSave.lastPoints;
+		this.contextConfig = drawingSupportOrSave.contextConfig;
+		this.drawingSupport = drawingSupportByName[drawingSupportOrSave.name];
+	} else {
+		this.drawingSupport = drawingSupportOrSave;
+
+		if (!opt_contextConfig) opt_contextConfig = paint.contextConfig;
+		this.contextConfig = {}
+		for (var i in opt_contextConfig) this.contextConfig[i] = opt_contextConfig[i];
+	}
 
 	if (!opt_context) opt_context = paint.context;
 	this.context = opt_context;
-
-	if (!opt_contextConfig) opt_contextConfig = paint.contextConfig;
-	this.contextConfig = {}
-	for (var i in opt_contextConfig) this.contextConfig[i] = opt_contextConfig[i];
 
 	this.drawingSupport.startPaintLayer(this);
 };
@@ -315,6 +354,19 @@ PaintLayer.prototype.draw = function() {
 		this.context[i] = this.contextConfig[i];
 	}
 	this.context.stroke();
+};
+
+/**
+ * Generate the data to store.
+ */
+PaintLayer.prototype.toSaveObj = function() {
+	var convertedCommands = [];
+	for (var i=0; i<this.cmds.length; i++) {
+		convertedCommands.push(this.cmds[i].name);
+	}
+	return {cmds: convertedCommands, coordinates: this.coordinates,
+			lastPoints: this.lastPoints, contextConfig: this.contextConfig,
+			name: getType(this.drawingSupport)};
 };
 
 /**
@@ -376,7 +428,7 @@ smoothCurves = new SmoothCurves();
 /**
  * Draw straight lines 
  */
-StraightLines = function() {};
+function StraightLines() {};
 
 StraightLines.prototype.startPaintLayer = function(paintLayer) {
 };
@@ -403,6 +455,11 @@ StraightLines.prototype.mouseDrawPoint = function(paintLayer, button, x, y) {
 
 straightLines = new StraightLines();
 
+drawingSupportByName = {};
+drawingSupportByName[getType(smoothCurves)] = smoothCurves;
+drawingSupportByName[getType(straightLines)] = straightLines;
+
+
 
 function paintInit() {
 	window.onkeypress = function(event) {paint.keypressOnCanvas(event);}
@@ -416,5 +473,7 @@ function paintInit() {
 
 	paint.canvas.width = document.body.offsetWidth;
 	paint.canvas.height = document.body.offsetHeight;
+
+	paint.load();
 };
 
