@@ -3,14 +3,6 @@ Tested events
 	onmousemove
 	onmouseup
 **********/
-function getType(obj) {
-	try {
-	    return obj.constructor.name;
-	} catch(e) {
-		return '[not an object]';
-	}
-};
-
 capture = {
 	element: null,
 	handlers: {},
@@ -108,7 +100,7 @@ paint = {
 		this.context = this.canvas.getContext("2d");
 		if (!this.layers.length) {
 			this.currentLayer = 0;
-			this.layers.push(new PaintLayer(new SmoothCurves()));
+			this.layers.push(new PaintLayer(smoothCurves));
 		}
 
 		this.canvas.width = document.body.offsetWidth;
@@ -226,15 +218,16 @@ colorSep = {
 		var index = parseInt(el.className.replace(/[^0-9]*([0-9]).*/, '$1'), 10);
 		var sampleColor = [0,0,0];
 		el.firstElementChild.style.left = x -2 + 'px';
-		var colordisplay = document.getElementById("color-display"+index);
-		colordisplay.value = colorVal;
-		this.adjustColor(el, colorVal, index);
+		var colorDisplay = document.getElementById("color-display"+index);
+		colorDisplay.value = colorVal;
+		this.adjustColor(colorDisplay, colorVal, index);
 	},
 	colorSepChanged: function(event) {
 		var el = event.target;
 		var colorVal =  el.value;
 		var index = parseInt(el.id.replace(/[^0-9]*([0-9]).*/, '$1'), 10);
 		event.preventDefault();
+		this.adjustColor(document.getElementById("color-display"+index), colorVal, index);
 	},
 	adjustColor: function(el, colorVal, index) {
 		var sampleColor = [0,0,0];
@@ -254,6 +247,14 @@ lineStyle = {
 	},
 	capChanged: function(event) {
 		paint.setContextConfig({lineCap: event.target.value});
+	},
+	newLayer: function(event) {
+		var drawingToolName = event.target.value;
+		var current = paint.layers[paint.currentLayer].drawingSupport.name;
+		if (current != drawingToolName) {
+			if (drawingToolName == '-new-') drawingToolName = current;
+			paint.layers.push(new PaintLayer(drawingSupportByName[drawingToolName]));
+		}
 	}
 };
 
@@ -285,15 +286,15 @@ function PaintLayer(drawingSupportOrSave, opt_context, opt_contextConfig) {
 
 		this.coordinates = drawingSupportOrSave.coordinates;
 		this.lastPoints = drawingSupportOrSave.lastPoints;
-		this.contextConfig = drawingSupportOrSave.contextConfig;
+		opt_contextConfig = drawingSupportOrSave.contextConfig;
 		this.drawingSupport = drawingSupportByName[drawingSupportOrSave.name];
 	} else {
 		this.drawingSupport = drawingSupportOrSave;
-
-		if (!opt_contextConfig) opt_contextConfig = paint.contextConfig;
-		this.contextConfig = {}
-		for (var i in opt_contextConfig) this.contextConfig[i] = opt_contextConfig[i];
 	}
+
+	if (!opt_contextConfig) opt_contextConfig = paint.contextConfig;
+	this.contextConfig = {}
+	for (var i in opt_contextConfig) this.contextConfig[i] = opt_contextConfig[i];
 
 	if (!opt_context) opt_context = paint.context;
 	this.context = opt_context;
@@ -346,14 +347,14 @@ PaintLayer.prototype.mouseUp = function(button, x, y) {
  * Draw the layer 
  */
 PaintLayer.prototype.draw = function() {
-	this.context.beginPath();
+	this.drawingSupport.startLayer(this);
 	for (var i=0; i<this.cmds.length; i++) {
 		this.cmds[i].apply(this.context, this.coordinates[i]);
 	}
 	for (var i in this.contextConfig) {
 		this.context[i] = this.contextConfig[i];
 	}
-	this.context.stroke();
+	this.drawingSupport.endLayer(this);
 };
 
 /**
@@ -366,98 +367,111 @@ PaintLayer.prototype.toSaveObj = function() {
 	}
 	return {cmds: convertedCommands, coordinates: this.coordinates,
 			lastPoints: this.lastPoints, contextConfig: this.contextConfig,
-			name: getType(this.drawingSupport)};
+			name: this.drawingSupport.name};
 };
 
 /**
  * Draw smooth curves using besier, quadratic, ro line as appropriate.
  */
-function SmoothCurves() {};
+smoothCurves = {
+	name: 'SmoothCurves',
+	/**
+	 * The last 2 points for drawing
+	 */
+	startPaintLayer: function(paintLayer) {
+		paintLayer.lastPoints = [-1, -1, -1, -1];
+	},
 
-/**
- * The last 2 points for drawing
- */
-SmoothCurves.prototype.startPaintLayer = function(paintLayer) {
-	paintLayer.lastPoints = [-1, -1, -1, -1];
-};
+	mouseDown: function(paintLayer, button, x, y) {
+		// First point do a moveTo
+		paintLayer.lastPoints = [-1, -1, x, y];
+		paintLayer.addCommand(paintLayer.context.moveTo, paintLayer.lastPoints.slice(2));
+	},
 
-SmoothCurves.prototype.mouseDown = function(paintLayer, button, x, y) {
-	// First point do a moveTo
-	paintLayer.lastPoints = [-1, -1, x, y];
-	paintLayer.addCommand(paintLayer.context.moveTo, paintLayer.lastPoints.slice(2));
-};
+	mouseUp: function(paintLayer, button, x, y) {
+	},
 
-SmoothCurves.prototype.mouseUp = function(paintLayer, button, x, y) {
-};
+	mouseDrawPoint: function(paintLayer, button, x, y) {
+		// If the distance from the first to the second point is much grater than the distance from the first to the third
+		// point then we have an acute angle, so it should be be kept sharp; don't do a spline curve.
+		var magnitude01 = Math.sqrt(Math.pow(paintLayer.lastPoints[0] - paintLayer.lastPoints[2], 2) + 
+				Math.pow(paintLayer.lastPoints[1] - paintLayer.lastPoints[3], 2));
+		var magnitude02x2 = Math.sqrt(Math.pow(paintLayer.lastPoints[0] - x, 2) + 
+				Math.pow(paintLayer.lastPoints[1] - y, 2)) * 2.0;
 
-SmoothCurves.prototype.mouseDrawPoint = function(paintLayer, button, x, y) {
-	// If the distance from the first to the second point is much grater than the distance from the first to the third
-	// point then we have an acute angle, so it should be be kept sharp; don't do a spline curve.
-	var magnitude01 = Math.sqrt(Math.pow(paintLayer.lastPoints[0] - paintLayer.lastPoints[2], 2) + 
-			Math.pow(paintLayer.lastPoints[1] - paintLayer.lastPoints[3], 2));
-	var magnitude02x2 = Math.sqrt(Math.pow(paintLayer.lastPoints[0] - x, 2) + 
-			Math.pow(paintLayer.lastPoints[1] - y, 2)) * 2.0;
+		var canSmoothOut = -1 == paintLayer.lastPoints[0] || magnitude01 > magnitude02x2;
 
-	var canSmoothOut = -1 == paintLayer.lastPoints[0] || magnitude01 > magnitude02x2;
+		if (canSmoothOut && paintLayer.cmds[paintLayer.cmds.length -1] == paintLayer.context.lineTo) {
+			paintLayer.lastPoints.shift();
+			paintLayer.lastPoints.shift();
+			paintLayer.lastPoints.push(x, y);
+			paintLayer.addCommand(paintLayer.context.quadraticCurveTo, paintLayer.lastPoints.slice(0), true);	//Dup the array the 2 points for the spline curve
+			console.log("quadraticCurveTo " + paintLayer.lastPoints);
+		} else if (canSmoothOut && paintLayer.cmds[paintLayer.cmds.length -1] == paintLayer.context.quadraticCurveTo) {
+			paintLayer.lastPoints.push(x, y);
+			paintLayer.addCommand(paintLayer.context.bezierCurveTo, paintLayer.lastPoints.slice(0), true);	//Dup the array the 3 points for the spline curve
+			console.log("bezierCurveTo " + paintLayer.lastPoints);
+			paintLayer.lastPoints.shift();
+			paintLayer.lastPoints.shift();
+			paintLayer.lastPoints[0] = paintLayer.lastPoints[1] = -1;	// Consume the used up points
+		} else {
+			// Just a lineto
+			paintLayer.addCommand(paintLayer.context.lineTo, [x, y]);
+			paintLayer.lastPoints.shift();
+			paintLayer.lastPoints.shift();
+			paintLayer.lastPoints.push(x, y);
+			console.log("lineTo " + x + " " +y);
+		}
+	},
 
-	if (canSmoothOut && paintLayer.cmds[paintLayer.cmds.length -1] == paintLayer.context.lineTo) {
-		paintLayer.lastPoints.shift();
-		paintLayer.lastPoints.shift();
-		paintLayer.lastPoints.push(x, y);
-		paintLayer.addCommand(paintLayer.context.quadraticCurveTo, paintLayer.lastPoints.slice(0), true);	//Dup the array the 2 points for the spline curve
-		console.log("quadraticCurveTo " + paintLayer.lastPoints);
-	} else if (canSmoothOut && paintLayer.cmds[paintLayer.cmds.length -1] == paintLayer.context.quadraticCurveTo) {
-		paintLayer.lastPoints.push(x, y);
-		paintLayer.addCommand(paintLayer.context.bezierCurveTo, paintLayer.lastPoints.slice(0), true);	//Dup the array the 3 points for the spline curve
-		console.log("bezierCurveTo " + paintLayer.lastPoints);
-		paintLayer.lastPoints.shift();
-		paintLayer.lastPoints.shift();
-		paintLayer.lastPoints[0] = paintLayer.lastPoints[1] = -1;	// Consume the used up points
-	} else {
-		// Just a lineto
-		paintLayer.addCommand(paintLayer.context.lineTo, [x, y]);
-		paintLayer.lastPoints.shift();
-		paintLayer.lastPoints.shift();
-		paintLayer.lastPoints.push(x, y);
-		console.log("lineTo " + x + " " +y);
+	startLayer: function(paintLayer) {
+		paintLayer.context.beginPath();
+	},
+	endLayer: function(paintLayer) {
+		paintLayer.context.stroke();
 	}
 };
-
-smoothCurves = new SmoothCurves();
 
 /**
  * Draw straight lines 
  */
-function StraightLines() {};
+straightLines = {
+	name: 'StraightLines',
 
-StraightLines.prototype.startPaintLayer = function(paintLayer) {
-};
+	startPaintLayer: function(paintLayer) {
+	},
 
-StraightLines.prototype.mouseDown = function(paintLayer, button, x, y) {
-	// First point add a moveTo all other times add a lineTo
-	if (0 == button) {
-		paintLayer.addCommand(paintLayer.context.moveTo, [x, y]);
-	} else {
-		paintLayer.addCommand(paintLayer.context.lineTo, [x, y]);
+	mouseDown: function(paintLayer, button, x, y) {
+		// First point add a moveTo all other times add a lineTo
+		if (0 == button) {
+			paintLayer.addCommand(paintLayer.context.moveTo, [x, y]);
+		} else {
+			paintLayer.addCommand(paintLayer.context.lineTo, [x, y]);
+		}
+	},
+
+	mouseUp: function(paintLayer, button, x, y) {
+	},
+
+	mouseDrawPoint: function(paintLayer, button, x, y) {
+		if (paintLayer.cmds[paintLayer.cmds.length - 1] == paintLayer.context.lineTo) {
+			paintLayer.replaceCoordinates([x, y]);	// Replace the last line
+		} else {
+			paintLayer.addCommand(paintLayer.context.lineTo, [x, y]);
+		}
+	},
+
+	startLayer: function(paintLayer) {
+		paintLayer.context.beginPath();
+	},
+	endLayer: function(paintLayer) {
+		paintLayer.context.stroke();
 	}
 };
-
-StraightLines.prototype.mouseUp = function(paintLayer, button, x, y) {
-};
-
-StraightLines.prototype.mouseDrawPoint = function(paintLayer, button, x, y) {
-	if (paintLayer.cmds[paintLayer.cmds.length - 1] == paintLayer.context.lineTo) {
-		paintLayer.replaceCoordinates([x, y]);	// Replace the last line
-	} else {
-		paintLayer.addCommand(paintLayer.context.lineTo, [x, y]);
-	}
-};
-
-straightLines = new StraightLines();
 
 drawingSupportByName = {};
-drawingSupportByName[getType(smoothCurves)] = smoothCurves;
-drawingSupportByName[getType(straightLines)] = straightLines;
+drawingSupportByName[smoothCurves.name] = smoothCurves;
+drawingSupportByName[straightLines.name] = straightLines;
 
 
 
@@ -468,7 +482,7 @@ function paintInit() {
 	paint.context = paint.canvas.getContext("2d");
 	if (!paint.layers.length) {
 		paint.currentLayer = 0;
-		paint.layers.push(new PaintLayer(new SmoothCurves()));
+		paint.layers.push(new PaintLayer(smoothCurves));
 	}
 
 	paint.canvas.width = document.body.offsetWidth;

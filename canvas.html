@@ -67,12 +67,17 @@
 				</div>
 				<div
 					<label class="label" for="line_width">Line Width: </label>
-					<input id="line_width" type="number" min="1" max="50" value ="1" onchange="lineStyle.widthChanged(event);"/>
+					<input id="line_width" type="number" min="1" max="50" value ="1" oninput="lineStyle.widthChanged(event);"/>
 					<label class="label" for="line_cap">Line Cap: </label>
 					<select id="line_cap" value="butt" oninput="lineStyle.capChanged(event);">
 						<option value="butt">butt</option>
 						<option value="round">round</option>
 						<option value="square">square</option>
+					</select>
+					<select id="drawind_tool" value="SmoothCurves" oninput="lineStyle.newLayer(event);">
+						<option value="-new-">New Layer</option>
+						<option value="SmoothCurves">SmoothCurves</option>
+						<option value="StraightLines">StraightLines</option>
 					</select>
 				</div>
 			</div>
