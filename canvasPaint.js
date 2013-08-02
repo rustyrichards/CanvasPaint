@@ -208,7 +208,7 @@ colorSep = {
 	mouseDown: function(event) {
 		var el = event.target;
 		capture.set(event, el, {mousemove: colorSep.mouseMove}, colorSep);
-		this.mouseMove(el, event.layerX, event.layerY);
+		this.mouseMove(el, el.button, event.layerX, event.layerY);
 	},
 	mouseMove: function(el, button, x, y) {
 		if (el.offsetWidth < x) {
