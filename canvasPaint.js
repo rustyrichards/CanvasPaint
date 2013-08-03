@@ -23,7 +23,7 @@ capture = {
 		var onmouseupSet = false;
 		for (var i in handlers) {
 			window['on' + i] = function(ev) {capture.eventWrap(ev, context);};
-			if ('mouseup' == i) onmouseupSet = true;
+			if ('onmouseup' == i) onmouseupSet = true;
 		}
 		if (!onmouseupSet) {
 			window.onmouseup = function(event) {capture.eventWrap(event);};
@@ -42,7 +42,7 @@ capture = {
 		}
 	},
 	clear: function() {
-		for (var i in this.handlers) window[i] = null;
+		for (var i in this.handlers) window['on' + i] = null;
 		this.handlers = {};
 
 		if (this.element && this.element.className) {
@@ -87,14 +87,14 @@ capture = {
 };
 
 paint = {
-	contextConfig: {lineWidth: 1, strokeStyle: "#000", lineCap: "butt"},
+	contextConfig: {lineWidth: 1, strokeStyle: "rgb(0, 0, 0)", lineCap: "butt"},
 	layers: [],
 	currentLayer: -1,
 	canvas: null,
 	context: null,
 
 	init: function() {
-		window.onkeypress = function(event) {this.keypressOnCanvas(event);}
+		window.onkeypress = function(event) {this.paletteKey(event);}
 		this.palette = document.getElementById("command-palette");
 		this.canvas = document.getElementById("drawing-area");
 		this.context = this.canvas.getContext("2d");
@@ -105,6 +105,11 @@ paint = {
 
 		this.canvas.width = document.body.offsetWidth;
 		this.canvas.height = document.body.offsetHeight;
+	},
+	getCurrentLayer: function() {
+		var layer = null;
+		if (-1 < this.currentLayer) layer = this.layers[this.currentLayer];
+		return layer;
 	},
 	redraw: function(opt_skipClear) {
 		if (!opt_skipClear) this.context.clearRect (0, 0, this.canvas.width, this.canvas.height);
@@ -146,30 +151,17 @@ paint = {
 			this.layers[i].draw();
 		}
 	},
-	keypressOnCanvas: function(event) {
-		switch (event.charCode) {
-			case 49: // '1' new SmoothCurves
-				this.currentLayer = this.layers.length;
-				this.layers.push(new PaintLayer(smoothCurves));
-				break;
-			case 50: // '2' new StraightLines
-				this.currentLayer = this.layers.length;
-				this.layers.push(new PaintLayer(straightLines));
-				break;
-			case 108: // 'l' new layer
-				if (this.layers.length) {
-					this.layers.push(new PaintLayer(this.layers[this.currentLayer].drawingSupport));
-					this.currentLayer = this.layers.length-1;
-				}
-				break;
-			case 112: // 'p' toggle the palette
-				this.palette.className = this.palette.className.replace(/(\s*hidden)|($)/, function(match) {
-					if (match && match.length) return '';
+	paletteKey: function(event) {
+		if ( 27 == event.keyCode) {
+			this.palette.className = this.palette.className.replace(/(\s*hidden)|($)/, function(match) {
+					if (match && match.length) {
+						palette.init();
+						return '';
+					}
 					return ' hidden';
-				})
-				break;
+			});
+			event.stopPropagation();
 		}
-		event.stopPropagation();
 	},
 	setContextConfig: function(cfg, opt_skipErase) {
 		for (var i in cfg) {
@@ -195,6 +187,9 @@ paint = {
 				}
 				this.currentLayer = array.length - 1;
 
+				var lastPaintContext = array[array.length - 1].contextConfig;
+				for (var i in lastPaintContext) this.contextConfig[i] = lastPaintContext[i];
+
 				this.redraw(true);
 			}
 		}
@@ -202,12 +197,30 @@ paint = {
 };
 
 // handlers for the color separations
-colorSep = {
+palette = {
 	colors: [0, 0, 0],
 	noReinter: false,
+	init: function() {
+		var context = this;
+		paint.contextConfig.strokeStyle.replace(/(\d+)\D+(\d+)\D+(\d+)/, function(match, r, g, b) {
+			for (var i=0; i<3; i++) {
+				context.adjustColor(document.getElementById("color-display"+i), 
+						arguments[i+1], i, true);
+			}
+		});
+		document.getElementById("line_width").value = paint.contextConfig.lineWidth;
+		document.getElementById("line_cap").value = paint.contextConfig.lineCap;
+		document.getElementById("drawing_tool").value = paint.getCurrentLayer().getDrawingToolName();
+
+		// Must layout to update the positions.
+		var context = this;
+		window.setTimeout(function() {
+			context.adjustSlider();
+		}, 0);
+	},
 	mouseDown: function(event) {
 		var el = event.target;
-		capture.set(event, el, {mousemove: colorSep.mouseMove}, colorSep);
+		capture.set(event, el, {mousemove: palette.mouseMove}, palette);
 		this.mouseMove(el, el.button, event.layerX, event.layerY);
 	},
 	mouseMove: function(el, button, x, y) {
@@ -229,19 +242,35 @@ colorSep = {
 		event.preventDefault();
 		this.adjustColor(document.getElementById("color-display"+index), colorVal, index);
 	},
-	adjustColor: function(el, colorVal, index) {
+	adjustSlider: function(opt_index) {
+		var i = opt_index || 0;
+		for (var i = opt_index || 0; i <= (opt_index || 2); i++ ) {
+			var slider = document.getElementById("sep-slider" + i);
+			if (!slider.parentNode.offsetWidth) return false;	// Not layed out!
+
+			var sliderPos = parseInt(slider.style.left, 10) + 2;
+			var currentColorVal =  Math.floor((255.99 * sliderPos) / slider.parentNode.offsetWidth);
+			if (currentColorVal != this.colors[i]) {
+				var pos = Math.floor(this.colors[i] * slider.parentNode.offsetWidth / 255.99);
+				slider.style.left = pos - 2 + "px";
+			}
+		}
+		return true;
+	},
+	adjustColor: function(el, colorVal, index, opt_paletteOnly) {
 		var sampleColor = [0,0,0];
 		sampleColor[index] = this.colors[index] = colorVal;
+		if (el.value != colorVal) el.value = colorVal;
 		el.style.backgroundColor = 'rgb(' + sampleColor[0] + ',' +
 			sampleColor[1] + ',' + sampleColor[2] + ')';
 		var color = 'rgb(' + this.colors[0] + ',' + this.colors[1] + ',' + this.colors[2] + ')';
-		document.getElementById("color-display").style.backgroundColor = color;
-		paint.setContextConfig({strokeStyle: color}, true);
-	}
-};
 
-// handlers for line styles
-lineStyle = {
+		this.adjustSlider(index);
+
+		document.getElementById("color-display").style.backgroundColor = color;
+		if (!opt_paletteOnly) paint.setContextConfig({strokeStyle: color}, true);
+	},
+	// handlers for line styles
 	widthChanged: function(event) {
 		paint.setContextConfig({lineWidth: event.target.value});
 	},
@@ -250,10 +279,11 @@ lineStyle = {
 	},
 	newLayer: function(event) {
 		var drawingToolName = event.target.value;
-		var current = paint.layers[paint.currentLayer].drawingSupport.name;
+		var current = paint.layers[paint.currentLayer].drawingTool.name;
 		if (current != drawingToolName) {
 			if (drawingToolName == '-new-') drawingToolName = current;
 			paint.layers.push(new PaintLayer(drawingSupportByName[drawingToolName]));
+			paint.currentLayer = paint.layers.length - 1;
 		}
 	}
 };
@@ -287,9 +317,9 @@ function PaintLayer(drawingSupportOrSave, opt_context, opt_contextConfig) {
 		this.coordinates = drawingSupportOrSave.coordinates;
 		this.lastPoints = drawingSupportOrSave.lastPoints;
 		opt_contextConfig = drawingSupportOrSave.contextConfig;
-		this.drawingSupport = drawingSupportByName[drawingSupportOrSave.name];
+		this.drawingTool = drawingSupportByName[drawingSupportOrSave.name];
 	} else {
-		this.drawingSupport = drawingSupportOrSave;
+		this.drawingTool = drawingSupportOrSave;
 	}
 
 	if (!opt_contextConfig) opt_contextConfig = paint.contextConfig;
@@ -299,7 +329,11 @@ function PaintLayer(drawingSupportOrSave, opt_context, opt_contextConfig) {
 	if (!opt_context) opt_context = paint.context;
 	this.context = opt_context;
 
-	this.drawingSupport.startPaintLayer(this);
+	this.drawingTool.startPaintLayer(this);
+};
+
+PaintLayer.prototype.getDrawingToolName = function() {
+	return this.drawingTool ? this.drawingTool.name : '';
 };
 
 /**
@@ -328,33 +362,33 @@ PaintLayer.prototype.replaceCoordinates = function(coordinates) {
  * drawing has pairs of drawing commands and coordinates
  */
 PaintLayer.prototype.mouseDrawPoint = function(button, x, y) {
-	if (this.drawingOn) this.drawingSupport.mouseDrawPoint(this, button, x, y);
+	if (this.drawingOn) this.drawingTool.mouseDrawPoint(this, button, x, y);
 };
 
 PaintLayer.prototype.mouseDown = function(button, x, y) {
 	this.drawingOn = true;
 
-	this.drawingSupport.mouseDown(this, button, x, y);
+	this.drawingTool.mouseDown(this, button, x, y);
 };
 
 PaintLayer.prototype.mouseUp = function(button, x, y) {
 	if (0 == button) this.drawingOn = false;
 
-	this.drawingSupport.mouseUp(this, button, x, y);
+	this.drawingTool.mouseUp(this, button, x, y);
 };
 
 /**
  * Draw the layer 
  */
 PaintLayer.prototype.draw = function() {
-	this.drawingSupport.startLayer(this);
+	this.drawingTool.startLayer(this);
 	for (var i=0; i<this.cmds.length; i++) {
 		this.cmds[i].apply(this.context, this.coordinates[i]);
 	}
 	for (var i in this.contextConfig) {
 		this.context[i] = this.contextConfig[i];
 	}
-	this.drawingSupport.endLayer(this);
+	this.drawingTool.endLayer(this);
 };
 
 /**
@@ -367,7 +401,7 @@ PaintLayer.prototype.toSaveObj = function() {
 	}
 	return {cmds: convertedCommands, coordinates: this.coordinates,
 			lastPoints: this.lastPoints, contextConfig: this.contextConfig,
-			name: this.drawingSupport.name};
+			name: this.drawingTool.name};
 };
 
 /**
@@ -392,25 +426,23 @@ smoothCurves = {
 	},
 
 	mouseDrawPoint: function(paintLayer, button, x, y) {
-		// If the distance from the first to the second point is much grater than the distance from the first to the third
+		// If the distance from the first to the second point is grater than the distance from the first to the third
 		// point then we have an acute angle, so it should be be kept sharp; don't do a spline curve.
 		var magnitude01 = Math.sqrt(Math.pow(paintLayer.lastPoints[0] - paintLayer.lastPoints[2], 2) + 
 				Math.pow(paintLayer.lastPoints[1] - paintLayer.lastPoints[3], 2));
 		var magnitude02x2 = Math.sqrt(Math.pow(paintLayer.lastPoints[0] - x, 2) + 
-				Math.pow(paintLayer.lastPoints[1] - y, 2)) * 2.0;
+				Math.pow(paintLayer.lastPoints[1] - y, 2));
 
-		var canSmoothOut = -1 == paintLayer.lastPoints[0] || magnitude01 > magnitude02x2;
+		var canSmoothOut = -1 != paintLayer.lastPoints[0] || magnitude01 < magnitude02x2;
 
 		if (canSmoothOut && paintLayer.cmds[paintLayer.cmds.length -1] == paintLayer.context.lineTo) {
 			paintLayer.lastPoints.shift();
 			paintLayer.lastPoints.shift();
 			paintLayer.lastPoints.push(x, y);
 			paintLayer.addCommand(paintLayer.context.quadraticCurveTo, paintLayer.lastPoints.slice(0), true);	//Dup the array the 2 points for the spline curve
-			console.log("quadraticCurveTo " + paintLayer.lastPoints);
 		} else if (canSmoothOut && paintLayer.cmds[paintLayer.cmds.length -1] == paintLayer.context.quadraticCurveTo) {
 			paintLayer.lastPoints.push(x, y);
 			paintLayer.addCommand(paintLayer.context.bezierCurveTo, paintLayer.lastPoints.slice(0), true);	//Dup the array the 3 points for the spline curve
-			console.log("bezierCurveTo " + paintLayer.lastPoints);
 			paintLayer.lastPoints.shift();
 			paintLayer.lastPoints.shift();
 			paintLayer.lastPoints[0] = paintLayer.lastPoints[1] = -1;	// Consume the used up points
@@ -420,7 +452,6 @@ smoothCurves = {
 			paintLayer.lastPoints.shift();
 			paintLayer.lastPoints.shift();
 			paintLayer.lastPoints.push(x, y);
-			console.log("lineTo " + x + " " +y);
 		}
 	},
 
@@ -476,7 +507,7 @@ drawingSupportByName[straightLines.name] = straightLines;
 
 
 function paintInit() {
-	window.onkeypress = function(event) {paint.keypressOnCanvas(event);}
+	window.onkeydown = function(event) {paint.paletteKey(event);}
 	paint.palette = document.getElementById("command-palette");
 	paint.canvas = document.getElementById("drawing-area");
 	paint.context = paint.canvas.getContext("2d");
