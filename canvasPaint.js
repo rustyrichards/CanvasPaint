@@ -86,8 +86,11 @@ capture = {
 	}
 };
 
+// contextConfig conventions
+//		All members that begin with _ do not get set to the canvas.context
+
 paint = {
-	contextConfig: {lineWidth: 1, strokeStyle: "rgb(0, 0, 0)", lineCap: "butt"},
+	contextConfig: {lineWidth: 1, strokeStyle: "rgb(0, 0, 0)", lineCap: "butt", _gridSpacing: 0},
 	layers: [],
 	currentLayer: -1,
 	canvas: null,
@@ -271,11 +274,10 @@ palette = {
 		if (!opt_paletteOnly) paint.setContextConfig({strokeStyle: color}, true);
 	},
 	// handlers for line styles
-	widthChanged: function(event) {
-		paint.setContextConfig({lineWidth: event.target.value});
-	},
-	capChanged: function(event) {
-		paint.setContextConfig({lineCap: event.target.value});
+	changed: function(event, name) {
+		var config = {};
+		config[name] = event.target.value;
+		paint.setContextConfig(config);
 	},
 	newLayer: function(event) {
 		var drawingToolName = event.target.value;
@@ -316,6 +318,7 @@ function PaintLayer(drawingSupportOrSave, opt_context, opt_contextConfig) {
 
 		this.coordinates = drawingSupportOrSave.coordinates;
 		this.lastPoints = drawingSupportOrSave.lastPoints;
+		this.gridSpacing = drawingSupportOrSave.gridSpacing;
 		opt_contextConfig = drawingSupportOrSave.contextConfig;
 		this.drawingTool = drawingSupportByName[drawingSupportOrSave.name];
 	} else {
@@ -362,19 +365,41 @@ PaintLayer.prototype.replaceCoordinates = function(coordinates) {
  * drawing has pairs of drawing commands and coordinates
  */
 PaintLayer.prototype.mouseDrawPoint = function(button, x, y) {
-	if (this.drawingOn) this.drawingTool.mouseDrawPoint(this, button, x, y);
+	if (this.drawingOn) {
+		var coord = Array.prototype.slice.call(arguments, 1);
+		this.adjustCoordinates(coord);
+
+		this.drawingTool.mouseDrawPoint(this, button, coord[0], coord[1]);
+	}
+};
+
+PaintLayer.prototype.adjustCoordinates = function(coord) {
+	var spacing = this.contextConfig._gridSpacing;
+	if (spacing) {
+		for (var i=0; i<coord.length; i++) {
+			var adj = coord[i] % spacing;
+			if (adj + adj < spacing) coord[i] -= adj;
+			else coord[i] += spacing - adj;
+		}
+	}
 };
 
 PaintLayer.prototype.mouseDown = function(button, x, y) {
 	this.drawingOn = true;
 
-	this.drawingTool.mouseDown(this, button, x, y);
+	var coord = Array.prototype.slice.call(arguments, 1);
+	this.adjustCoordinates(coord);
+
+	this.drawingTool.mouseDown(this, button, coord[0], coord[1]);
 };
 
 PaintLayer.prototype.mouseUp = function(button, x, y) {
 	if (0 == button) this.drawingOn = false;
 
-	this.drawingTool.mouseUp(this, button, x, y);
+	var coord = Array.prototype.slice.call(arguments, 1);
+	this.adjustCoordinates(coord);
+
+	this.drawingTool.mouseUp(this, button, coord[0], coord[1]);
 };
 
 /**
@@ -386,7 +411,7 @@ PaintLayer.prototype.draw = function() {
 		this.cmds[i].apply(this.context, this.coordinates[i]);
 	}
 	for (var i in this.contextConfig) {
-		this.context[i] = this.contextConfig[i];
+		if (i[0] != '_') this.context[i] = this.contextConfig[i];
 	}
 	this.drawingTool.endLayer(this);
 };
@@ -403,6 +428,7 @@ PaintLayer.prototype.toSaveObj = function() {
 			lastPoints: this.lastPoints, contextConfig: this.contextConfig,
 			name: this.drawingTool.name};
 };
+
 
 /**
  * Draw smooth curves using besier, quadratic, ro line as appropriate.
