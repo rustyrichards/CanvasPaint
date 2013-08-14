@@ -10,6 +10,7 @@
 				border-radius: 20px; border: 2px solid #666; background-color: #999;}
 			.hidden {display: none;}
 			.label {margin-top:5px; margin-left:10px;}
+			.inner {margin-top:10px;}
 			.color-table {position:relative;}
 			.color-sep-frame {position:relative; margin-left:10px; margin-right:80px;}
 			.color-sep-container {display:inline-block; width:100%; height:30px; position: relative;} 
@@ -32,62 +33,26 @@
 			.capturing {border: 1px dotted #aaa;}
 		</style>
 		<script src="canvasPaint.js"></script> 
+		<script src="lines.js"></script> 
 	</head>
-	<body onload="paintInit();" onbeforeunload="paint.save();">
+	<body onload="paint.init('SmoothCurves');" onbeforeunload="paint.save();">
 		<form>
 		<div id="command-palette" class="command-palette hidden" tabindex="2"
 			onmousedown="paint.paletteMouseDown(event);">
 			<div class="inner">
-				<div class="label">Color:</div>
-				<div class="color-table">
-					<div class="color-sep-frame">
-						<div class="color-sep-container">
-							<div class="color-sep-bar sep0" tabindex="3" onmousedown="palette.mouseDown(event);">
-								<div id="sep-slider0" class="color-sep-slider"></div>
-							</div>
-							<input id="color-display0" class="color-sep-sample" type="number" min="0" max="255" value ="1"
-							oninput="palette.colorSepChanged(event);"/>
-						</div>
-						<div class="color-sep-container">
-							<div class="color-sep-bar sep1" tabindex="4" onmousedown="palette.mouseDown(event);">
-								<div id="sep-slider1" class="color-sep-slider"></div>
-							</div>
-							<input id="color-display1" class="color-sep-sample" type="number" min="0" max="255" value ="1"
-							oninput="palette.colorSepChanged(event);"/>
-						</div>
-						<div class="color-sep-container">
-							<div class="color-sep-bar sep2" tabindex="5" onmousedown="palette.mouseDown(event);">
-								<div id="sep-slider2" class="color-sep-slider"></div>
-							</div>
-							<input id="color-display2" class="color-sep-sample" type="number" min="0" max="255" value ="1"
-							oninput="palette.colorSepChanged(event);"/>
-						</div>
-					</div>
-					<div id="color-display" class="color-sep-sample large"></div>
-				</div>
-				<div>
-					<label class="label" for="line_width">Line Width: </label>
-					<input id="line_width" type="number" min="1" max="50" value ="1" oninput="palette.changed(event, 'lineWidth');"/>
-					<label class="label" for="line_cap">Line Cap: </label>
-					<select id="line_cap" value="butt" onchange="palette.changed(event, 'lineCap');">
-						<option value="butt">butt</option>
-						<option value="round">round</option>
-						<option value="square">square</option>
-					</select>
-					<label class="label" for="drawing_tool">Drawing Tool: </label>
-					<select id="drawing_tool" value="SmoothCurves" onchange="palette.newLayer(event);">
-						<option value="-new-">New Layer</option>
-						<option value="SmoothCurves">SmoothCurves</option>
-						<option value="StraightLines">StraightLines</option>
-					</select>
-					<label class="label" for="grid_size">Grid Size: </label>
-					<input id="grid_size" type="number" min="0" max="50" value ="0" step="2" oninput="palette.changed(event, '_gridSpacing');">
-				</div>
+				<label class="label" for="drawing_tool">Drawing Tool: </label>
+				<select id="drawing_tool" value="SmoothCurves" onchange="palette.newLayer(event);">
+					<option value="-new-">New Layer</option>
+					<option value="SmoothCurves">SmoothCurves</option>
+					<option value="StraightLines">StraightLines</option>
+				</select>
+				<button onclick="paint.eraseAll();">Erase All</button>
+				<div id="palettePluginContent"></div>
 			</div>
 		</div>
 		<div class="draging-row">
 			<canvas id="drawing-area" class="drawing-area" onmousedown="paint.mouseDownOnCanvas(event);"
-					tabindex="1"></canvas>
+					ontouchstart="paint.mouseDownOnCanvas(event);" tabindex="1"></canvas>
 		</div>
 		</form>
 	</body>

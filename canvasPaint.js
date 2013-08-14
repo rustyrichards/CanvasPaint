@@ -1,4 +1,28 @@
 /**********
+canvasPaint.js
+	This is the framework for the canvas based paint component.  The paint tools are implemented by plugins.
+**********/
+
+drawingToolByName = {};
+
+function logError(err) {
+	if (console && console.log) {
+		var errorStr = '';
+		if (err.message) {
+			errorStr = err.message
+		} else if (err.toString) {
+			errorStr = err.toString();
+		}
+		if (err.fileName) errorStr += '  FileName: ' + err.fileName;
+		if (err.lineNumber) errorStr += '  Line: ' + err.lineNumber;
+		if (err.columnNumber) errorStr += '  Col: ' + err.columnNumber;
+
+		if (errorStr) console.log(errorStr);
+	}
+};
+
+
+/**********
 Tested events
 	onmousemove
 	onmouseup
@@ -12,8 +36,15 @@ capture = {
 	set: function(event, element, handlers, opt_context) {
 		event.preventDefault();	// No selecting while capturing!
 
-		this.xOffset = event.screenX - event.layerX;
-		this.yOffset = event.screenY - event.layerY;
+		if (event.targetTouches && event.targetTouches.length) {
+			var touch = event.targetTouches[0];
+			if (!event.button) event.button = event.targetTouches.length -1;
+			this.xOffset = touch.screenX - touch.clientX;
+			this.yOffset = touch.screenY - touch.clientY;
+		} else {
+			this.xOffset = event.screenX - event.layerX;
+			this.yOffset = event.screenY - event.layerY;
+		}
 
 		var context = opt_context || window;
 
@@ -69,7 +100,15 @@ capture = {
 		return [x, y];
 	},
 	eventWrap: function(event, opt_context) {
-		var coord = ('layerX' in event) ? this.adjustXAndY(event.screenX, event.screenY) : [0, 0];
+		var x = event.screenX;
+		var y = event.screenY;
+		if (event.targetTouches && event.targetTouches.length) {
+			var touch = event.targetTouches[0];
+			if (!event.button) event.button = event.targetTouches.length -1;
+			x = touch.screenX;
+			y = touch.screenY;
+		}
+		var coord = ('layerX' in event) ? this.adjustXAndY(x, y) : [0, 0];
 		var button = event.button || 0;
 		try {
 			if (opt_context) this.handlers[event.type].call(opt_context, this.element, button, coord[0], coord[1]);
@@ -83,6 +122,9 @@ capture = {
 		if ('mouseup' == event.type && 0 == event.button) {
 			this.clear();
 		}
+	},
+	isSetForElement: function(element) {
+		return this.element == element;
 	}
 };
 
@@ -96,18 +138,20 @@ paint = {
 	canvas: null,
 	context: null,
 
-	init: function() {
-		window.onkeypress = function(event) {this.paletteKey(event);}
+	init: function(toolName) {
+		window.onkeydown = paint.paletteKey.bind(paint);
 		this.palette = document.getElementById("command-palette");
 		this.canvas = document.getElementById("drawing-area");
 		this.context = this.canvas.getContext("2d");
 		if (!this.layers.length) {
 			this.currentLayer = 0;
-			this.layers.push(new PaintLayer(smoothCurves));
+			this.layers.push(new PaintLayer(drawingToolByName[toolName]));
 		}
 
 		this.canvas.width = document.body.offsetWidth;
 		this.canvas.height = document.body.offsetHeight;
+
+		this.load();
 	},
 	getCurrentLayer: function() {
 		var layer = null;
@@ -123,10 +167,27 @@ paint = {
 	},
 	mouseDownOnCanvas: function(event) {
 		if (0 <= this.currentLayer && this.layers.length > this.currentLayer) {
-			if (0 == event.button) {
-				capture.set(event, this.canvas, {mousemove: this.drawOnCanvas, mouseup: this.mouseUpOnCanvas}, paint);
+			var x = event.layerX;
+			var y = event.layerY;
+			if (event.targetTouches && event.targetTouches.length) {
+				if (3 <= event.targetTouches.length) {
+					// Patch for touch - 3 point touch will toggle the palette
+					this.showPalette();
+					event.preventDefault();
+					return;
+				}
+				var touch = event.targetTouches[0];
+				if (!event.button) event.button = event.targetTouches.length - 1;
+				// HACK for second press down - pretend it is button #1
+				if (!event.button && capture.isSetForElement(event.target)) event.button = 1;
+				x = touch.clientX;
+				y = touch.clientY;
 			}
-			this.layers[this.currentLayer].mouseDown(event.button, event.layerX, event.layerY);
+			if (0 == event.button) {
+				capture.set(event, this.canvas, {mousemove: this.drawOnCanvas, mouseup: this.mouseUpOnCanvas,
+						touchmove: this.drawOnCanvas, touchend: this.mouseUpOnCanvas}, paint);
+			}
+			this.layers[this.currentLayer].mouseDown(event.button, x, y);
 			this.layers[this.currentLayer].draw();
 			event.preventDefault();
 		}
@@ -154,16 +215,42 @@ paint = {
 			this.layers[i].draw();
 		}
 	},
+	showPalette: function() {
+		var context = this;
+		this.palette.className = this.palette.className.replace(/(\s*hidden)|($)/, function(match) {
+			if (match && match.length) {
+				var layer = context.getCurrentLayer();
+				var toolName = (layer) ? layer.getDrawingToolName() : '';
+				palette.resetForDrawingTool(toolName);
+				return '';
+			}
+			return ' hidden';
+		});
+	},
 	paletteKey: function(event) {
-		if ( 27 == event.keyCode) {
-			this.palette.className = this.palette.className.replace(/(\s*hidden)|($)/, function(match) {
-					if (match && match.length) {
-						palette.init();
-						return '';
+		switch (event.keyCode) {
+			case 27:
+				this.showPalette();
+				event.stopPropagation();
+				break;
+			case 90: 	// Ctrl+z
+				if (event.ctrlKey) {
+					var layer = this.getCurrentLayer();
+					if (layer) {
+						layer.undo();
+						event.stopPropagation();
 					}
-					return ' hidden';
-			});
-			event.stopPropagation();
+				}
+				break;
+			case 89: 	// Ctrl+y
+				if (event.ctrlKey) {
+					var layer = this.getCurrentLayer();
+					if (layer) {
+						layer.redo();
+						event.stopPropagation();
+					}
+				}
+				break;
 		}
 	},
 	setContextConfig: function(cfg, opt_skipErase) {
@@ -196,14 +283,79 @@ paint = {
 				this.redraw(true);
 			}
 		}
+	},
+	eraseAll: function() {
+		var drawingTool = this.getCurrentLayer();
+		drawingTool = (drawingTool) ? drawingTool.drawingTool : drawingToolByName['SmoothCurves'];
+		this.layers = [];
+		this.layers.push(new PaintLayer(drawingTool));
+
+		this.redraw();
 	}
 };
 
+// Palette has a lot of color contorl handling. It may be better to separate the color control handling out.
 // handlers for the color separations
 palette = {
 	colors: [0, 0, 0],
 	noReinter: false,
-	init: function() {
+	colorPaletteMarkup: 
+		'<div class="label">Color:</div>'+
+		'<div class="color-table">'+
+			'<div id="color-sep-frame" class="color-sep-frame">'+
+				'<div class="color-sep-container">'+
+					'<div class="color-sep-bar sep0" tabindex="3" onmousedown="palette.mouseDown(event);">'+
+						'<div id="sep-slider0" class="color-sep-slider"></div>'+
+					'</div>'+
+					'<input id="color-display0" class="color-sep-sample" type="number" min="0" max="255" value ="1"'+
+					'oninput="palette.colorSepChanged(event);"/>'+
+				'</div>'+
+				'<div class="color-sep-container">'+
+					'<div class="color-sep-bar sep1" tabindex="4" onmousedown="palette.mouseDown(event);">'+
+						'<div id="sep-slider1" class="color-sep-slider"></div>'+
+					'</div>'+
+					'<input id="color-display1" class="color-sep-sample" type="number" min="0" max="255" value ="1"'+
+					'oninput="palette.colorSepChanged(event);"/>'+
+				'</div>'+
+				'<div class="color-sep-container">'+
+					'<div class="color-sep-bar sep2" tabindex="5" onmousedown="palette.mouseDown(event);">'+
+						'<div id="sep-slider2" class="color-sep-slider"></div>'+
+					'</div>'+
+					'<input id="color-display2" class="color-sep-sample" type="number" min="0" max="255" value ="1"'+
+					'oninput="palette.colorSepChanged(event);"/>'+
+				'</div>'+
+			'</div>'+
+			'<div id="color-display" class="color-sep-sample large"></div>'+
+		'</div>',
+
+	makePaletteMarkupString: function(item) {
+		var markup = '';
+		if (item) {
+			if (('string' != typeof item) && (0 < item.length)) {
+				// 0 < item.length - non empty and array like 
+				for (var i=0; i<item.length; i++) markup += this.makePaletteMarkupString(item[i]);
+			} else if ('function' == typeof item) {
+				// A function call it and send its result through makePaletteMarkupString.
+				markup += this.makePaletteMarkupString(item());
+			} else {
+				try {
+					markup += item.toString(10);
+				} catch (e) {logError(e)}
+			}
+		}
+		return markup;
+	},
+
+	resetForDrawingTool: function(drawintToolName) {
+		try {
+			var tool = drawingToolByName[drawintToolName];
+			document.getElementById('palettePluginContent').innerHTML = this.makePaletteMarkupString(tool.paletteMarkup);
+			tool.paletteInit();
+		} catch (e) {logError(e)}
+
+	},
+
+	initColorControl: function() {
 		var context = this;
 		paint.contextConfig.strokeStyle.replace(/(\d+)\D+(\d+)\D+(\d+)/, function(match, r, g, b) {
 			for (var i=0; i<3; i++) {
@@ -211,19 +363,13 @@ palette = {
 						arguments[i+1], i, true);
 			}
 		});
-		document.getElementById("line_width").value = paint.contextConfig.lineWidth;
-		document.getElementById("line_cap").value = paint.contextConfig.lineCap;
-		document.getElementById("drawing_tool").value = paint.getCurrentLayer().getDrawingToolName();
 
 		// Must layout to update the positions.
-		var context = this;
-		window.setTimeout(function() {
-			context.adjustSlider();
-		}, 0);
+		window.setTimeout(this.adjustSlider.bind(this), 0);
 	},
 	mouseDown: function(event) {
 		var el = event.target;
-		capture.set(event, el, {mousemove: palette.mouseMove}, palette);
+		capture.set(event, el, {mousemove: palette.mouseMove, touchmove: this.drawOnCanvas}, palette);
 		this.mouseMove(el, el.button, event.layerX, event.layerY);
 	},
 	mouseMove: function(el, button, x, y) {
@@ -246,19 +392,23 @@ palette = {
 		this.adjustColor(document.getElementById("color-display"+index), colorVal, index);
 	},
 	adjustSlider: function(opt_index) {
-		var i = opt_index || 0;
-		for (var i = opt_index || 0; i <= (opt_index || 2); i++ ) {
-			var slider = document.getElementById("sep-slider" + i);
-			if (!slider.parentNode.offsetWidth) return false;	// Not layed out!
+		// The palette may not exist!
+		if (document.getElementById('color-sep-frame')) {
+			var i = opt_index || 0;
+			for (var i = opt_index || 0; i <= (opt_index || 2); i++ ) {
+				var slider = document.getElementById("sep-slider" + i);
+				if (!slider.parentNode.offsetWidth) return false;	// Not layed out!
 
-			var sliderPos = parseInt(slider.style.left, 10) + 2;
-			var currentColorVal =  Math.floor((255.99 * sliderPos) / slider.parentNode.offsetWidth);
-			if (currentColorVal != this.colors[i]) {
-				var pos = Math.floor(this.colors[i] * slider.parentNode.offsetWidth / 255.99);
-				slider.style.left = pos - 2 + "px";
+				var sliderPos = parseInt(slider.style.left, 10) + 2;
+				var currentColorVal =  Math.floor((255.99 * sliderPos) / slider.parentNode.offsetWidth);
+				if (currentColorVal != this.colors[i]) {
+					var pos = Math.floor(this.colors[i] * slider.parentNode.offsetWidth / 255.99);
+					slider.style.left = pos - 2 + "px";
+				}
 			}
+			return true;
 		}
-		return true;
+		return false;
 	},
 	adjustColor: function(el, colorVal, index, opt_paletteOnly) {
 		var sampleColor = [0,0,0];
@@ -284,7 +434,7 @@ palette = {
 		var current = paint.layers[paint.currentLayer].drawingTool.name;
 		if (current != drawingToolName) {
 			if (drawingToolName == '-new-') drawingToolName = current;
-			paint.layers.push(new PaintLayer(drawingSupportByName[drawingToolName]));
+			paint.layers.push(new PaintLayer(drawingToolByName[drawingToolName]));
 			paint.currentLayer = paint.layers.length - 1;
 		}
 	}
@@ -306,6 +456,12 @@ function PaintLayer(drawingSupportOrSave, opt_context, opt_contextConfig) {
 	 */
 	this.coordinates = [];
 
+	/*
+	 * For undo and redo
+	 */
+	this.undoCmds = [];
+	this.undoCoordinates = [];
+
 	/**
 	 * The last few points if needed for drawing
 	 */
@@ -320,7 +476,7 @@ function PaintLayer(drawingSupportOrSave, opt_context, opt_contextConfig) {
 		this.lastPoints = drawingSupportOrSave.lastPoints;
 		this.gridSpacing = drawingSupportOrSave.gridSpacing;
 		opt_contextConfig = drawingSupportOrSave.contextConfig;
-		this.drawingTool = drawingSupportByName[drawingSupportOrSave.name];
+		this.drawingTool = drawingToolByName[drawingSupportOrSave.name];
 	} else {
 		this.drawingTool = drawingSupportOrSave;
 	}
@@ -416,6 +572,32 @@ PaintLayer.prototype.draw = function() {
 	this.drawingTool.endLayer(this);
 };
 
+PaintLayer.prototype.undo = function() {
+	if (this.drawingTool.undo) {
+		try {
+			this.drawingTool.undo(this);
+		} catch (e) {logError(e)}
+	} else 	if (this.cmds.length) {
+		this.undoCmds.push(this.cmds.pop());
+		this.undoCoordinates.push(this.coordinates.pop());
+	}
+
+	paint.redraw();
+};
+
+PaintLayer.prototype.redo = function() {
+	if (this.drawingTool.redo) {
+		try {
+			this.drawingTool.redo(this);
+		} catch (e) {logError(e)}
+	} else if (this.undoCmds.length) {
+		this.cmds.push(this.undoCmds.pop());
+		this.coordinates.push(this.undoCoordinates.pop());
+	}
+
+	paint.redraw();
+};
+
 /**
  * Generate the data to store.
  */
@@ -430,121 +612,35 @@ PaintLayer.prototype.toSaveObj = function() {
 };
 
 
-/**
- * Draw smooth curves using besier, quadratic, ro line as appropriate.
- */
-smoothCurves = {
-	name: 'SmoothCurves',
-	/**
-	 * The last 2 points for drawing
-	 */
-	startPaintLayer: function(paintLayer) {
-		paintLayer.lastPoints = [-1, -1, -1, -1];
-	},
 
-	mouseDown: function(paintLayer, button, x, y) {
-		// First point do a moveTo
-		paintLayer.lastPoints = [-1, -1, x, y];
-		paintLayer.addCommand(paintLayer.context.moveTo, paintLayer.lastPoints.slice(2));
-	},
 
-	mouseUp: function(paintLayer, button, x, y) {
-	},
+drawingToolByName = {};
 
-	mouseDrawPoint: function(paintLayer, button, x, y) {
-		// If the distance from the first to the second point is grater than the distance from the first to the third
-		// point then we have an acute angle, so it should be be kept sharp; don't do a spline curve.
-		var magnitude01 = Math.sqrt(Math.pow(paintLayer.lastPoints[0] - paintLayer.lastPoints[2], 2) + 
-				Math.pow(paintLayer.lastPoints[1] - paintLayer.lastPoints[3], 2));
-		var magnitude02x2 = Math.sqrt(Math.pow(paintLayer.lastPoints[0] - x, 2) + 
-				Math.pow(paintLayer.lastPoints[1] - y, 2));
+/**********
+Setting up a drawing tool:
 
-		var canSmoothOut = -1 != paintLayer.lastPoints[0] || magnitude01 < magnitude02x2;
-
-		if (canSmoothOut && paintLayer.cmds[paintLayer.cmds.length -1] == paintLayer.context.lineTo) {
-			paintLayer.lastPoints.shift();
-			paintLayer.lastPoints.shift();
-			paintLayer.lastPoints.push(x, y);
-			paintLayer.addCommand(paintLayer.context.quadraticCurveTo, paintLayer.lastPoints.slice(0), true);	//Dup the array the 2 points for the spline curve
-		} else if (canSmoothOut && paintLayer.cmds[paintLayer.cmds.length -1] == paintLayer.context.quadraticCurveTo) {
-			paintLayer.lastPoints.push(x, y);
-			paintLayer.addCommand(paintLayer.context.bezierCurveTo, paintLayer.lastPoints.slice(0), true);	//Dup the array the 3 points for the spline curve
-			paintLayer.lastPoints.shift();
-			paintLayer.lastPoints.shift();
-			paintLayer.lastPoints[0] = paintLayer.lastPoints[1] = -1;	// Consume the used up points
-		} else {
-			// Just a lineto
-			paintLayer.addCommand(paintLayer.context.lineTo, [x, y]);
-			paintLayer.lastPoints.shift();
-			paintLayer.lastPoints.shift();
-			paintLayer.lastPoints.push(x, y);
-		}
-	},
-
-	startLayer: function(paintLayer) {
-		paintLayer.context.beginPath();
-	},
-	endLayer: function(paintLayer) {
-		paintLayer.context.stroke();
-	}
+drawingToolByName[NAME] = {
+	name: NAME,
+	paletteMarkup: STRING or ARRAY,
+	paletteInit: function() {},
+	startPaintLayer: function(paintLayer) {),
+	mouseDown: function(paintLayer, button, x, y) {),
+	mouseUp: function(paintLayer, button, x, y) {},
+	mouseDrawPoint: function(paintLayer, button, x, y) {},
+	startLayer: function(paintLayer) {},
+	endLayer: function(paintLayer) {},
+	undo: null or function(paintLayer) {},	
+	redo: null or function(paintLayer) {}
 };
 
-/**
- * Draw straight lines 
- */
-straightLines = {
-	name: 'StraightLines',
-
-	startPaintLayer: function(paintLayer) {
-	},
-
-	mouseDown: function(paintLayer, button, x, y) {
-		// First point add a moveTo all other times add a lineTo
-		if (0 == button) {
-			paintLayer.addCommand(paintLayer.context.moveTo, [x, y]);
-		} else {
-			paintLayer.addCommand(paintLayer.context.lineTo, [x, y]);
-		}
-	},
-
-	mouseUp: function(paintLayer, button, x, y) {
-	},
-
-	mouseDrawPoint: function(paintLayer, button, x, y) {
-		if (paintLayer.cmds[paintLayer.cmds.length - 1] == paintLayer.context.lineTo) {
-			paintLayer.replaceCoordinates([x, y]);	// Replace the last line
-		} else {
-			paintLayer.addCommand(paintLayer.context.lineTo, [x, y]);
-		}
-	},
-
-	startLayer: function(paintLayer) {
-		paintLayer.context.beginPath();
-	},
-	endLayer: function(paintLayer) {
-		paintLayer.context.stroke();
-	}
-};
-
-drawingSupportByName = {};
-drawingSupportByName[smoothCurves.name] = smoothCurves;
-drawingSupportByName[straightLines.name] = straightLines;
-
-
-
-function paintInit() {
-	window.onkeydown = function(event) {paint.paletteKey(event);}
-	paint.palette = document.getElementById("command-palette");
-	paint.canvas = document.getElementById("drawing-area");
-	paint.context = paint.canvas.getContext("2d");
-	if (!paint.layers.length) {
-		paint.currentLayer = 0;
-		paint.layers.push(new PaintLayer(smoothCurves));
-	}
-
-	paint.canvas.width = document.body.offsetWidth;
-	paint.canvas.height = document.body.offsetHeight;
-
-	paint.load();
-};
+NOTE:  For paletteMarkup if it is an array each element is handled this way:
+		1) Falsy
+			Nothing is concatinated to the string.
+		2) Not a function, and not an array like object.
+			.toString(10) is concatinated onto the output.  (The 10 only applies to numbers; it makes the output base 10.) 
+		3) A function
+			The function is called and its output is passed through this list again.
+		4) An array like object
+			Each elemet goes throught the above tests
+**********/
 
