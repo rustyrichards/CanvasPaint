@@ -58,7 +58,7 @@ capture = {
 		var onmouseupSet = false;
 		for (var i in handlers) {
 			window['on' + i] = function(ev) {capture.eventWrap(ev, context);};
-			if ('onmouseup' == i) onmouseupSet = true;
+			if ('mouseup' == i) onmouseupSet = true;
 		}
 		if (!onmouseupSet) {
 			window.onmouseup = function(event) {capture.eventWrap(event);};
@@ -305,7 +305,7 @@ palette = {
 	noReinter: false,
 	colorPaletteMarkup: 
 		'<div>'+
-			'<label class="color_for" for="drawing_tool">Color For: </label>'+
+			'<label class="label" for="color_for">Color For: </label>'+
 			'<select id="color_for" value="strokeStyle" onchange="palette.setColorDestination(event);">'+
 			'</select>'+
 		'</div>'+
@@ -375,17 +375,32 @@ palette = {
 	},
 
 	/*
-	 * contextColors string or an array of cavas context color settings.
+	 * Adjust the conor on a changed color property.
 	 */
-	initColorControl: function(contextColors) {
-		if ('string' == typeof contextColors) contextColors = [contextColors];
+	initNewColorProperty: function(colorProperty) {
 		var context = this;
-		paint.contextConfig[contextColors[0]].replace(/(\d+)\D+(\d+)\D+(\d+)/, function(match, r, g, b) {
+		paint.contextConfig[colorProperty].replace(/(\d+)\D+(\d+)\D+(\d+)/, function(match, r, g, b) {
 			for (var i=0; i<3; i++) {
 				context.adjustColor(document.getElementById("color-display"+i), 
 						arguments[i+1], i, true);
 			}
 		});
+
+		// Must layout to update the positions.
+		window.setTimeout(this.adjustSlider.bind(this), 0);
+	},
+
+	setColorDestination: function(event) {
+		var colorProperty = event.target.value;
+		this.initNewColorProperty(colorProperty);
+	},
+	/*
+	 * contextColors string or an array of cavas context color settings.
+	 */
+	initColorControl: function(contextColors) {
+		if ('string' == typeof contextColors) contextColors = [contextColors];
+
+		this.initNewColorProperty(contextColors[0]);
 
 		var options = '';
 		for (var i=0; i<contextColors.length; i++) {
@@ -396,9 +411,6 @@ palette = {
 		colorForElement.innerHTML = options;
 		colorForElement.value = contextColors[0];
 
-
-		// Must layout to update the positions.
-		window.setTimeout(this.adjustSlider.bind(this), 0);
 	},
 	mouseDown: function(event) {
 		var el = event.target;
@@ -470,9 +482,16 @@ palette = {
 		var drawingToolName = event.target.value;
 		var current = paint.layers[paint.currentLayer].drawingTool.name;
 		if (current != drawingToolName) {
-			if (drawingToolName == '-new-') drawingToolName = current;
+			var isSame = false;
+			if (drawingToolName == '-new-') {
+				isSame = true;
+				drawingToolName = current;
+			}
 			paint.layers.push(new PaintLayer(drawingToolByName[drawingToolName]));
 			paint.currentLayer = paint.layers.length - 1;
+
+			// REbuild the palette if the tool
+			if (!isSame) palette.resetForDrawingTool(drawingToolName);
 		}
 	}
 };
@@ -500,9 +519,9 @@ function PaintLayer(drawingSupportOrSave, opt_context, opt_contextConfig) {
 	this.undoCoordinates = [];
 
 	/**
-	 * The last few points if needed for drawing
+	 * A working array for the drawing command
 	 */
-	this.lastPoints = [];
+	this.scratchCmdArgs = [];
 
 	if (drawingSupportOrSave.cmds && drawingSupportOrSave.coordinates) {
 		// Convert the strings back to function pointers
@@ -510,7 +529,7 @@ function PaintLayer(drawingSupportOrSave, opt_context, opt_contextConfig) {
 		for (var i=0; i<cmds.length; i++) this.cmds.push(paint.context[cmds[i]]);
 
 		this.coordinates = drawingSupportOrSave.coordinates;
-		this.lastPoints = drawingSupportOrSave.lastPoints;
+		this.scratchCmdArgs = drawingSupportOrSave.scratchCmdArgs;
 		this.gridSpacing = drawingSupportOrSave.gridSpacing;
 		opt_contextConfig = drawingSupportOrSave.contextConfig;
 		this.drawingTool = drawingToolByName[drawingSupportOrSave.name];
@@ -541,7 +560,8 @@ PaintLayer.prototype.addCommand = function(cmd, coordinates, opt_replaceLast) {
 		if (coordinates) this.coordinates.pop();
 	}
 	if (cmd) this.cmds.push(cmd);
-	if (coordinates) this.coordinates.push(coordinates);
+	// Duplicate the array, so a scratch/working array like this,lastPoints can be reused
+	if (coordinates) this.coordinates.push(coordinates.slice(0));
 
 };
 
@@ -550,7 +570,8 @@ PaintLayer.prototype.addCommand = function(cmd, coordinates, opt_replaceLast) {
  */
 PaintLayer.prototype.replaceCoordinates = function(coordinates) {
 	this.coordinates.pop();
-	this.coordinates.push(coordinates);
+	// Duplicate the array, so a scratch/working array like this,lastPoints can be reused
+	this.coordinates.push(coordinates.slice(0));
 
 };
 
@@ -596,16 +617,30 @@ PaintLayer.prototype.mouseUp = function(button, x, y) {
 };
 
 /**
+ * Call setDrawingContextProperties before this.drawingTool.endLayer
+ */
+PaintLayer.prototype.setDrawingContextProperties = function() {
+	for (var i in this.contextConfig) {
+		if (i[0] != '_') this.context[i] = this.contextConfig[i];
+	}
+};
+
+/**
  * Draw the layer 
  */
 PaintLayer.prototype.draw = function() {
 	this.drawingTool.startLayer(this);
 	for (var i=0; i<this.cmds.length; i++) {
-		this.cmds[i].apply(this.context, this.coordinates[i]);
+		if (this.context.stroke == this.cmds[i]) {
+			// Use endLayer & startLayer instead of the raw stroke to make usre all context parameters are set.
+			this.setDrawingContextProperties();
+			this.drawingTool.endLayer(this);
+			if (i <this.cmds.length-1) this.drawingTool.startLayer(this);
+		} else {
+			this.cmds[i].apply(this.context, this.coordinates[i]);
+		}
 	}
-	for (var i in this.contextConfig) {
-		if (i[0] != '_') this.context[i] = this.contextConfig[i];
-	}
+	this.setDrawingContextProperties();
 	this.drawingTool.endLayer(this);
 };
 
@@ -644,7 +679,7 @@ PaintLayer.prototype.toSaveObj = function() {
 		convertedCommands.push(this.cmds[i].name);
 	}
 	return {cmds: convertedCommands, coordinates: this.coordinates,
-			lastPoints: this.lastPoints, contextConfig: this.contextConfig,
+			lastPoints: this.scratchCmdArgs, contextConfig: this.contextConfig,
 			name: this.drawingTool.name};
 };
 

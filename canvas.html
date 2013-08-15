@@ -7,10 +7,9 @@
 			.drawing-area {position:absolute; top:0; right:0; bottom:0; left:0; border-style:none !important;}
 			.command-palette {position:absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 2}
 			.command-palette .inner {position:absolute; top: 0; right: 0; bottom: 0; left: 0;  margin: 50px;
-				border-radius: 20px; border: 2px solid #666; background-color: #999;}
+				border-radius: 20px; border: 2px solid #666; background-color: #999; padding-top:10px;}
 			.hidden {display: none;}
 			.label {margin-top:5px; margin-left:10px;}
-			.inner {margin-top:10px;}
 			.color-table {position:relative;}
 			.color-sep-frame {position:relative; margin-left:10px; margin-right:80px;}
 			.color-sep-container {display:inline-block; width:100%; height:30px; position: relative;} 
@@ -34,6 +33,7 @@
 		</style>
 		<script src="canvasPaint.js"></script> 
 		<script src="lines.js"></script> 
+		<script src="shapes.js"></script> 
 	</head>
 	<body onload="paint.init('SmoothCurves');" onbeforeunload="paint.save();">
 		<form>

@@ -30,13 +30,13 @@ drawingToolByName['SmoothCurves'] = {
 	 * The last 2 points for drawing
 	 */
 	startPaintLayer: function(paintLayer) {
-		paintLayer.lastPoints = [-1, -1, -1, -1];
+		paintLayer.scratchCmdArgs = [-1, -1, -1, -1];
 	},
 
 	mouseDown: function(paintLayer, button, x, y) {
 		// First point do a moveTo
-		paintLayer.lastPoints = [-1, -1, x, y];
-		paintLayer.addCommand(paintLayer.context.moveTo, paintLayer.lastPoints.slice(2));
+		paintLayer.scratchCmdArgs = [-1, -1, x, y];
+		paintLayer.addCommand(paintLayer.context.moveTo, paintLayer.scratchCmdArgs.slice(2));
 	},
 
 	mouseUp: function(paintLayer, button, x, y) {
@@ -45,30 +45,30 @@ drawingToolByName['SmoothCurves'] = {
 	mouseDrawPoint: function(paintLayer, button, x, y) {
 		// If the distance from the first to the second point is grater than the distance from the first to the third
 		// point then we have an acute angle, so it should be be kept sharp; don't do a spline curve.
-		var magnitude01 = Math.sqrt(Math.pow(paintLayer.lastPoints[0] - paintLayer.lastPoints[2], 2) + 
-				Math.pow(paintLayer.lastPoints[1] - paintLayer.lastPoints[3], 2));
-		var magnitude02x2 = Math.sqrt(Math.pow(paintLayer.lastPoints[0] - x, 2) + 
-				Math.pow(paintLayer.lastPoints[1] - y, 2));
+		var magnitude01 = Math.sqrt(Math.pow(paintLayer.scratchCmdArgs[0] - paintLayer.scratchCmdArgs[2], 2) + 
+				Math.pow(paintLayer.scratchCmdArgs[1] - paintLayer.scratchCmdArgs[3], 2));
+		var magnitude02x2 = Math.sqrt(Math.pow(paintLayer.scratchCmdArgs[0] - x, 2) + 
+				Math.pow(paintLayer.scratchCmdArgs[1] - y, 2));
 
-		var canSmoothOut = -1 != paintLayer.lastPoints[0] || magnitude01 < magnitude02x2;
+		var canSmoothOut = -1 != paintLayer.scratchCmdArgs[0] || magnitude01 < magnitude02x2;
 
 		if (canSmoothOut && paintLayer.cmds[paintLayer.cmds.length -1] == paintLayer.context.lineTo) {
-			paintLayer.lastPoints.shift();
-			paintLayer.lastPoints.shift();
-			paintLayer.lastPoints.push(x, y);
-			paintLayer.addCommand(paintLayer.context.quadraticCurveTo, paintLayer.lastPoints.slice(0), true);	//Dup the array the 2 points for the spline curve
+			paintLayer.scratchCmdArgs.shift();
+			paintLayer.scratchCmdArgs.shift();
+			paintLayer.scratchCmdArgs.push(x, y);
+			paintLayer.addCommand(paintLayer.context.quadraticCurveTo, paintLayer.scratchCmdArgs.slice(0), true);	//Dup the array the 2 points for the spline curve
 		} else if (canSmoothOut && paintLayer.cmds[paintLayer.cmds.length -1] == paintLayer.context.quadraticCurveTo) {
-			paintLayer.lastPoints.push(x, y);
-			paintLayer.addCommand(paintLayer.context.bezierCurveTo, paintLayer.lastPoints.slice(0), true);	//Dup the array the 3 points for the spline curve
-			paintLayer.lastPoints.shift();
-			paintLayer.lastPoints.shift();
-			paintLayer.lastPoints[0] = paintLayer.lastPoints[1] = -1;	// Consume the used up points
+			paintLayer.scratchCmdArgs.push(x, y);
+			paintLayer.addCommand(paintLayer.context.bezierCurveTo, paintLayer.scratchCmdArgs.slice(0), true);	//Dup the array the 3 points for the spline curve
+			paintLayer.scratchCmdArgs.shift();
+			paintLayer.scratchCmdArgs.shift();
+			paintLayer.scratchCmdArgs[0] = paintLayer.scratchCmdArgs[1] = -1;	// Consume the used up points
 		} else {
 			// Just a lineto
 			paintLayer.addCommand(paintLayer.context.lineTo, [x, y]);
-			paintLayer.lastPoints.shift();
-			paintLayer.lastPoints.shift();
-			paintLayer.lastPoints.push(x, y);
+			paintLayer.scratchCmdArgs.shift();
+			paintLayer.scratchCmdArgs.shift();
+			paintLayer.scratchCmdArgs.push(x, y);
 		}
 	},
 
