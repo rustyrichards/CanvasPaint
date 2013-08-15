@@ -23,7 +23,7 @@ drawingToolByName['SmoothCurves'] = {
 		document.getElementById("line_cap").value = paint.contextConfig.lineCap;
 		document.getElementById("drawing_tool").value = paint.getCurrentLayer().getDrawingToolName();
 
-		palette.initColorControl();
+		palette.initColorControl('strokeStyle');
 	},
 
 	/**
@@ -109,7 +109,7 @@ drawingToolByName['SmoothCurves'] = {
 			var coordinatesMatched = false;
 			if ((cmd != undoCmd) && (coordinates.length == undoCoordinates.length)) {
 				var coordinatesMatched = true;
-				for (var i=0; matched && i<coordinates.length; i++) matched = coordinates[i] == coordinatesMatched[i];
+				for (var i=0; coordinatesMatched && i<coordinates.length; i++) coordinatesMatched = coordinates[i] == coordinatesMatched[i];
 			}
 
 			if (coordinatesMatched) {

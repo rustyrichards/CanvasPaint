@@ -5,20 +5,24 @@ canvasPaint.js
 
 drawingToolByName = {};
 
-function logError(err) {
+function log() {
 	if (console && console.log) {
-		var errorStr = '';
-		if (err.message) {
-			errorStr = err.message
-		} else if (err.toString) {
-			errorStr = err.toString();
-		}
-		if (err.fileName) errorStr += '  FileName: ' + err.fileName;
-		if (err.lineNumber) errorStr += '  Line: ' + err.lineNumber;
-		if (err.columnNumber) errorStr += '  Col: ' + err.columnNumber;
-
-		if (errorStr) console.log(errorStr);
+		for (var i =0; i<arguments.length; i++) console.log(arguments[i]);
 	}
+}
+
+function logError(err) {
+	var errorStr = '';
+	if (err.message) {
+		errorStr = err.message
+	} else if (err.toString) {
+		errorStr = err.toString();
+	}
+	if (err.fileName) errorStr += '  FileName: ' + err.fileName;
+	if (err.lineNumber) errorStr += '  Line: ' + err.lineNumber;
+	if (err.columnNumber) errorStr += '  Col: ' + err.columnNumber;
+
+	log(errorStr);
 };
 
 
@@ -300,7 +304,11 @@ palette = {
 	colors: [0, 0, 0],
 	noReinter: false,
 	colorPaletteMarkup: 
-		'<div class="label">Color:</div>'+
+		'<div>'+
+			'<label class="color_for" for="drawing_tool">Color For: </label>'+
+			'<select id="color_for" value="strokeStyle" onchange="palette.setColorDestination(event);">'+
+			'</select>'+
+		'</div>'+
 		'<div class="color-table">'+
 			'<div id="color-sep-frame" class="color-sep-frame">'+
 				'<div class="color-sep-container">'+
@@ -349,20 +357,45 @@ palette = {
 	resetForDrawingTool: function(drawintToolName) {
 		try {
 			var tool = drawingToolByName[drawintToolName];
+			var content = '<option value="-new-">New Layer</option>';
+			for (var i in drawingToolByName) {
+				content += '<option value="' + i + '">' + i + '</option>';
+			}
+			var drawingToolElement = document.getElementById('drawing_tool')
+			drawingToolElement.innerHTML = content;
+
+			var layer = paint.getCurrentLayer();
+			var toolName = (layer) ? layer.getDrawingToolName() : '';
+			drawingToolElement.value = toolName
+
 			document.getElementById('palettePluginContent').innerHTML = this.makePaletteMarkupString(tool.paletteMarkup);
 			tool.paletteInit();
 		} catch (e) {logError(e)}
 
 	},
 
-	initColorControl: function() {
+	/*
+	 * contextColors string or an array of cavas context color settings.
+	 */
+	initColorControl: function(contextColors) {
+		if ('string' == typeof contextColors) contextColors = [contextColors];
 		var context = this;
-		paint.contextConfig.strokeStyle.replace(/(\d+)\D+(\d+)\D+(\d+)/, function(match, r, g, b) {
+		paint.contextConfig[contextColors[0]].replace(/(\d+)\D+(\d+)\D+(\d+)/, function(match, r, g, b) {
 			for (var i=0; i<3; i++) {
 				context.adjustColor(document.getElementById("color-display"+i), 
 						arguments[i+1], i, true);
 			}
 		});
+
+		var options = '';
+		for (var i=0; i<contextColors.length; i++) {
+			options += '<option value="' + contextColors[i] + '">' + contextColors[i] + '</option>';
+		}
+
+		var colorForElement = document.getElementById('color_for');
+		colorForElement.innerHTML = options;
+		colorForElement.value = contextColors[0];
+
 
 		// Must layout to update the positions.
 		window.setTimeout(this.adjustSlider.bind(this), 0);
@@ -421,7 +454,11 @@ palette = {
 		this.adjustSlider(index);
 
 		document.getElementById("color-display").style.backgroundColor = color;
-		if (!opt_paletteOnly) paint.setContextConfig({strokeStyle: color}, true);
+		if (!opt_paletteOnly) {
+			var contextConfig = {};
+			contextConfig[document.getElementById('color_for').value] = color;
+			paint.setContextConfig(contextConfig, true);
+		}
 	},
 	// handlers for line styles
 	changed: function(event, name) {
