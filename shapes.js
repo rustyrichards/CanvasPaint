@@ -1,80 +1,94 @@
 /**
  * Draw smooth curves using besier, quadratic, or line as appropriate.
  */
-if (drawingToolByName['SmoothCurves']) {
-	drawingToolByName['SmoothShape'] = cloneOneLevel(drawingToolByName['SmoothCurves']);
-	drawingToolByName['SmoothShape']['name'] = 'SmoothShape';
-	drawingToolByName['SmoothShape']['contextColors'] = ['strokeStyle', 'fillStyle'];
-	drawingToolByName['SmoothShape']['baseMouseDown'] = drawingToolByName['SmoothCurves']['mouseDown'];
-	drawingToolByName['SmoothShape']['mouseDown'] = function(paintLayer, button, x, y) {
-		paintLayer.startingPoint = [x, y];
-		this.baseMouseDown(paintLayer, button, x, y);
-	};
-	drawingToolByName['SmoothShape']['mouseUp'] = function(paintLayer, button, x, y) {
-		// close to the starting point
-		var lastPointAdjusted = false;
-		if (this.coordinates.length) {
-			var lastPoint = this.coordinates[this.coordinates.length - 1];
-			var deltaX = Math.abs(x - lastPoint[lastPoint.length - 2]);
-			var deltaY = Math.abs(y - lastPoint[lastPoint.length - 1]);
+if (drawingToolByName['Lines Smooth']) {
+	drawingToolByName['Shapes Smooth'] = cloneOneLevel(drawingToolByName['Lines Smooth'], {
+		name: 'Shapes Smooth',
+		contextColors: ['strokeStyle', 'fillStyle'],
+		baseMouseDown: drawingToolByName['Lines Smooth']['mouseDown'],
+		handleShapeEnd: function(paintLayer) {
+			// close to the starting point
+			var lastPointAdjusted = false;
+			if (paintLayer.coordinates.length) {
+				var lastPoint = paintLayer.coordinates[paintLayer.coordinates.length - 1];
+				var deltaX = Math.abs(paintLayer.startingPoint[0] - lastPoint[lastPoint.length - 2]);
+				var deltaY = Math.abs(paintLayer.startingPoint[1] - lastPoint[lastPoint.length - 1]);
 
-			// If it is close enough just replace the last point!
-			if ((2>=x) && (2>=y)) {
-				lastPoint[lastPoint.length - 2] = paintLayer.startingPoint[0];
-				lastPoint[lastPoint.length - 1] = paintLayer.startingPoint[1];
-				lastPointAdjusted = true;
+				// If it is close enough just replace the last point!
+				if ((2>=deltaX) && (2>=deltaY)) {
+					lastPoint[lastPoint.length - 2] = paintLayer.startingPoint[0];
+					lastPoint[lastPoint.length - 1] = paintLayer.startingPoint[1];
+					lastPointAdjusted = true;
+				}
 			}
+			if (!lastPointAdjusted) {
+				this.mouseDrawPoint(paintLayer, 0, paintLayer.startingPoint[0], paintLayer.startingPoint[1]);
+			}
+			paintLayer.addCommand(paintLayer.context.closePath, []);
+			paintLayer.startingPoint = [];
+		},
+		mouseDown: function(paintLayer, button, x, y) {
+			// For a button other tha 0 (left) close out the current shape and start a new one.
+			if (button && paintLayer.startingPoint.length) this.handleShapeEnd(paintLayer);
+			paintLayer.startingPoint = [x, y];
+			this.baseMouseDown(paintLayer, button, x, y);
+		},
+		mouseUp: function(paintLayer, button, x, y) {
+			if (!button) this.handleShapeEnd(paintLayer);
+		},
+		endLayer: function(paintLayer) {
+			if (paintLayer.contextConfig.fillStyle) paintLayer.context.fill();
+			paintLayer.context.closePath();
+			paintLayer.context.stroke();
 		}
-		if (!lastPointAdjusted) this.mouseDrawPoint(paintLayer, button, paintLayer.startingPoint[0], paintLayer.startingPoint[1]);
-		paintLayer.addCommand(paintLayer.context.closePath, []);
-
-	};
-	drawingToolByName['SmoothShape']['endLayer'] = function(paintLayer) {
-		if (paintLayer.contextConfig.fillStyle) paintLayer.context.fill();
-		paintLayer.context.closePath();
-		paintLayer.context.stroke();
-	};
+	});
 }
 
-if (drawingToolByName['StraightLines']) {
-	drawingToolByName['StraightShape'] = cloneOneLevel(drawingToolByName['StraightLines']);
-	drawingToolByName['StraightShape']['name'] = 'StraightShape';
-	drawingToolByName['StraightShape']['contextColors'] = ['strokeStyle', 'fillStyle'];
-	drawingToolByName['StraightShape']['baseMouseDown'] = drawingToolByName['StraightLines']['mouseDown'];
-	drawingToolByName['StraightShape']['mouseDown'] = function(paintLayer, button, x, y) {
-		paintLayer.startingPoint = [x, y];
-		this.baseMouseDown(paintLayer, button, x, y);
-	};
-	drawingToolByName['StraightShape']['mouseUp'] = function(paintLayer, button, x, y) {
-		// close to the starting point
-		var lastPointAdjusted = false;
-		if (this.coordinates.length) {
-			var lastPoint = this.coordinates[this.coordinates.length - 1];
-			var deltaX = Math.abs(x - lastPoint[lastPoint.length - 2]);
-			var deltaY = Math.abs(y - lastPoint[lastPoint.length - 1]);
+if (drawingToolByName['Lines Straight']) {
+	drawingToolByName['Shapes Straight'] = cloneOneLevel(drawingToolByName['Lines Straight'], {
+		name: 'Shapes Straight',
+		contextColors: ['strokeStyle', 'fillStyle'],
+		baseMouseDown: drawingToolByName['Lines Straight']['mouseDown'],
+		mouseDown: function(paintLayer, button, x, y) {
+			// For a button other than 0 (left) just place a line, don't close the shape.
+			if (!button) paintLayer.startingPoint = [x, y];
+			this.baseMouseDown(paintLayer, button, x, y);
+		},
+		mouseUp: function(paintLayer, button, x, y) {
+			// For a button other than 0 (left) just place a line, don't close the shape.
+			if (!button) {
+				// close to the starting point
+				var lastPointAdjusted = false;
+				if (paintLayer.coordinates.length) {
+					var lastPoint = paintLayer.coordinates[paintLayer.coordinates.length - 1];
+					var deltaX = Math.abs(paintLayer.startingPoint[0] - lastPoint[lastPoint.length - 2]);
+					var deltaY = Math.abs(paintLayer.startingPoint[1] - lastPoint[lastPoint.length - 1]);
 
-			// If it is close enough just replace the last point!
-			if ((5>=x) && (5>=y)) {
-				lastPoint[lastPoint.length - 2] = paintLayer.startingPoint[0];
-				lastPoint[lastPoint.length - 1] = paintLayer.startingPoint[1];
-				lastPointAdjusted = true;
+					// If it is close enough just replace the last point!
+					if ((5>=deltaX) && (5>=deltaY)) {
+						lastPoint[lastPoint.length - 2] = paintLayer.startingPoint[0];
+						lastPoint[lastPoint.length - 1] = paintLayer.startingPoint[1];
+						lastPointAdjusted = true;
+					}
+				}
+				if (!lastPointAdjusted) paintLayer.addCommand(paintLayer.context.lineTo, paintLayer.startingPoint);
+				paintLayer.addCommand(paintLayer.context.closePath, []);
+				paintLayer.startingPoint = [];
 			}
+		},
+		endLayer: function(paintLayer) {
+			if (paintLayer.contextConfig.fillStyle) paintLayer.context.fill();
+			paintLayer.context.closePath();
+			paintLayer.context.stroke();
 		}
-		if (!lastPointAdjusted) this.mouseDrawPoint(paintLayer, button, paintLayer.startingPoint[0], paintLayer.startingPoint[1]);
-		paintLayer.addCommand(paintLayer.context.closePath, []);
-	};
-	drawingToolByName['StraightShape']['endLayer'] = function(paintLayer) {
-		if (paintLayer.contextConfig.fillStyle) paintLayer.context.fill();
-		paintLayer.context.closePath();
-		paintLayer.context.stroke();
-	};
+	});
 }
 
 /**
  * Draw rectangles.
  */
-drawingToolByName['Rectangles'] = {
-	name: 'Rectangles',
+drawingToolByName['Shapes Rectangles'] = {
+	name: 'Shapes Rectangles',
 	contextColors: ['strokeStyle', 'fillStyle'],
 	paletteMarkup: [
 		palette.colorPaletteMarkup,
@@ -129,14 +143,14 @@ drawingToolByName['Rectangles'] = {
 };
 
 /**
- * Draw circles
+ * Draw Shapes Circles
  */
-drawingToolByName['Circles'] =  {
+drawingToolByName['Shapes Circles'] =  {
 	fullCircle: 2.0 * Math.PI,
-	name: 'Circles',
+	name: 'Shapes Circles',
 	/* SmoothCurves and StraightLKines use the same palette */
-	paletteMarkup: drawingToolByName['Rectangles'].paletteMarkup,
-	paletteInit: drawingToolByName['Rectangles'].paletteInit,
+	paletteMarkup: drawingToolByName['Shapes Rectangles'].paletteMarkup,
+	paletteInit: drawingToolByName['Shapes Rectangles'].paletteInit,
 
 	/**
 	 * lastPoints - the arc parameters  x, y, radius, arcStart, arcEnd, false

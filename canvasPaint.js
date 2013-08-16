@@ -25,9 +25,14 @@ function logError(err) {
 	log(errorStr);
 };
 
-function cloneOneLevel(obj) {
+/**
+ * In cloneOneLevel later arguments will override earlier ones.
+ */
+function cloneOneLevel() {
 	var clone = {};
-	for (var i in obj) clone[i] = obj[i];
+	for (var i=0; i<arguments.length; i++) {
+		for (var property in arguments[i]) clone[property] = arguments[i][property];
+	}
 	return clone;
 }
 
@@ -175,6 +180,10 @@ paint = {
 			this.layers[i].draw();
 		}
 	},
+	suppresscontextmenu: function(event) {
+		event.preventDefault();
+		return false;
+	},
 	mouseDownOnCanvas: function(event) {
 		if (0 <= this.currentLayer && this.layers.length > this.currentLayer) {
 			var x = event.layerX;
@@ -296,7 +305,7 @@ paint = {
 	},
 	eraseAll: function() {
 		var drawingTool = this.getCurrentLayer();
-		drawingTool = (drawingTool) ? drawingTool.drawingTool : drawingToolByName['SmoothCurves'];
+		drawingTool = (drawingTool) ? drawingTool.drawingTool : drawingToolByName['Lines Smooth'];
 		this.layers = [];
 		this.layers.push(new PaintLayer(drawingTool));
 

@@ -1,8 +1,8 @@
 /**
  * Draw smooth curves using besier, quadratic, or line as appropriate.
  */
-drawingToolByName['SmoothCurves'] = {
-	name: 'SmoothCurves',
+drawingToolByName['Lines Smooth'] = {
+	name: 'Lines Smooth',
 	contextColors: 'strokeStyle',
 	paletteMarkup: [
 		palette.colorPaletteMarkup,
@@ -128,12 +128,12 @@ drawingToolByName['SmoothCurves'] = {
 /**
  * Draw straight lines 
  */
-drawingToolByName['StraightLines'] =  {
-	name: 'StraightLines',
+drawingToolByName['Lines Straight'] =  {
+	name: 'Lines Straight',
 	contextColors: 'strokeStyle',
 	/* SmoothCurves and StraightLKines use the same palette */
-	paletteMarkup: drawingToolByName['SmoothCurves'].paletteMarkup,
-	paletteInit: drawingToolByName['SmoothCurves'].paletteInit,
+	paletteMarkup: drawingToolByName['Lines Smooth'].paletteMarkup,
+	paletteInit: drawingToolByName['Lines Smooth'].paletteInit,
 
 
 	startPaintLayer: function(paintLayer) {

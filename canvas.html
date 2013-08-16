@@ -36,7 +36,7 @@
 		<script src="lines.js"></script> 
 		<script src="shapes.js"></script> 
 	</head>
-	<body onload="paint.init('SmoothCurves');" onbeforeunload="paint.save();">
+	<body onload="paint.init('Lines Smooth');" onbeforeunload="paint.save();">
 		<form>
 		<div id="command-palette" class="command-palette hidden" tabindex="2"
 			onmousedown="paint.paletteMouseDown(event);">
@@ -53,7 +53,8 @@
 		</div>
 		<div class="draging-row">
 			<canvas id="drawing-area" class="drawing-area" onmousedown="paint.mouseDownOnCanvas(event);"
-					ontouchstart="paint.mouseDownOnCanvas(event);" tabindex="1"></canvas>
+					ontouchstart="paint.mouseDownOnCanvas(event);" 
+					oncontextmenu="paint.suppresscontextmenu(event);"  tabindex="1"></canvas>
 		</div>
 		</form>
 	</body>
