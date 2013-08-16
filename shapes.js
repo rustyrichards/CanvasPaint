@@ -1,29 +1,97 @@
 /**
+ * Draw smooth curves using besier, quadratic, or line as appropriate.
+ */
+if (drawingToolByName['SmoothCurves']) {
+	drawingToolByName['SmoothShape'] = cloneOneLevel(drawingToolByName['SmoothCurves']);
+	drawingToolByName['SmoothShape']['name'] = 'SmoothShape';
+	drawingToolByName['SmoothShape']['contextColors'] = ['strokeStyle', 'fillStyle'];
+	drawingToolByName['SmoothShape']['baseMouseDown'] = drawingToolByName['SmoothCurves']['mouseDown'];
+	drawingToolByName['SmoothShape']['mouseDown'] = function(paintLayer, button, x, y) {
+		paintLayer.startingPoint = [x, y];
+		this.baseMouseDown(paintLayer, button, x, y);
+	};
+	drawingToolByName['SmoothShape']['mouseUp'] = function(paintLayer, button, x, y) {
+		// close to the starting point
+		var lastPointAdjusted = false;
+		if (this.coordinates.length) {
+			var lastPoint = this.coordinates[this.coordinates.length - 1];
+			var deltaX = Math.abs(x - lastPoint[lastPoint.length - 2]);
+			var deltaY = Math.abs(y - lastPoint[lastPoint.length - 1]);
+
+			// If it is close enough just replace the last point!
+			if ((2>=x) && (2>=y)) {
+				lastPoint[lastPoint.length - 2] = paintLayer.startingPoint[0];
+				lastPoint[lastPoint.length - 1] = paintLayer.startingPoint[1];
+				lastPointAdjusted = true;
+			}
+		}
+		if (!lastPointAdjusted) this.mouseDrawPoint(paintLayer, button, paintLayer.startingPoint[0], paintLayer.startingPoint[1]);
+		paintLayer.addCommand(paintLayer.context.closePath, []);
+
+	};
+	drawingToolByName['SmoothShape']['endLayer'] = function(paintLayer) {
+		if (paintLayer.contextConfig.fillStyle) paintLayer.context.fill();
+		paintLayer.context.closePath();
+		paintLayer.context.stroke();
+	};
+}
+
+if (drawingToolByName['StraightLines']) {
+	drawingToolByName['StraightShape'] = cloneOneLevel(drawingToolByName['StraightLines']);
+	drawingToolByName['StraightShape']['name'] = 'StraightShape';
+	drawingToolByName['StraightShape']['contextColors'] = ['strokeStyle', 'fillStyle'];
+	drawingToolByName['StraightShape']['baseMouseDown'] = drawingToolByName['StraightLines']['mouseDown'];
+	drawingToolByName['StraightShape']['mouseDown'] = function(paintLayer, button, x, y) {
+		paintLayer.startingPoint = [x, y];
+		this.baseMouseDown(paintLayer, button, x, y);
+	};
+	drawingToolByName['StraightShape']['mouseUp'] = function(paintLayer, button, x, y) {
+		// close to the starting point
+		var lastPointAdjusted = false;
+		if (this.coordinates.length) {
+			var lastPoint = this.coordinates[this.coordinates.length - 1];
+			var deltaX = Math.abs(x - lastPoint[lastPoint.length - 2]);
+			var deltaY = Math.abs(y - lastPoint[lastPoint.length - 1]);
+
+			// If it is close enough just replace the last point!
+			if ((5>=x) && (5>=y)) {
+				lastPoint[lastPoint.length - 2] = paintLayer.startingPoint[0];
+				lastPoint[lastPoint.length - 1] = paintLayer.startingPoint[1];
+				lastPointAdjusted = true;
+			}
+		}
+		if (!lastPointAdjusted) this.mouseDrawPoint(paintLayer, button, paintLayer.startingPoint[0], paintLayer.startingPoint[1]);
+		paintLayer.addCommand(paintLayer.context.closePath, []);
+	};
+	drawingToolByName['StraightShape']['endLayer'] = function(paintLayer) {
+		if (paintLayer.contextConfig.fillStyle) paintLayer.context.fill();
+		paintLayer.context.closePath();
+		paintLayer.context.stroke();
+	};
+}
+
+/**
  * Draw rectangles.
  */
 drawingToolByName['Rectangles'] = {
 	name: 'Rectangles',
+	contextColors: ['strokeStyle', 'fillStyle'],
 	paletteMarkup: [
 		palette.colorPaletteMarkup,
 		'<div>'+
 			'<label class="label" for="line_width">Line Width: </label>'+
 			'<input id="line_width" type="number" min="1" max="50" value ="1" oninput="palette.changed(event, \'lineWidth\');"/>'+
-			'<label class="label" for="line_cap">Line Cap: </label>'+
-			'<select id="line_cap" value="butt" onchange="palette.changed(event, \'lineCap\');">'+
-				'<option value="butt">butt</option>'+
-				'<option value="round">round</option>'+
-				'<option value="square">square</option>'+
-			'</select>'+
-			'<label class="label" for="grid_size">Grid Size: </label>'+
-			'<input id="grid_size" type="number" min="0" max="50" value ="0" step="2" oninput="palette.changed(event, \'_gridSpacing\');">'+
+			'<div class="right">'+
+				'<label class="label" for="grid_size">Grid Size: </label>'+
+				'<input id="grid_size" type="number" min="0" max="50" value ="0" step="2" oninput="palette.changed(event, \'_gridSpacing\');">'+
+			'</div>'+
 		'</div>'
 	], 
 	paletteInit: function() {
 		document.getElementById("line_width").value = paint.contextConfig.lineWidth;
-		document.getElementById("line_cap").value = paint.contextConfig.lineCap;
 		document.getElementById("drawing_tool").value = paint.getCurrentLayer().getDrawingToolName();
 
-		palette.initColorControl(['strokeStyle', 'fillStyle']);
+		palette.initColorControl(this.contextColors);
 	},
 
 	/**
@@ -87,7 +155,7 @@ drawingToolByName['Circles'] =  {
 	},
 
 	mouseUp: function(paintLayer, button, x, y) {
-		paintLayer.addCommand(paintLayer.context.stroke, paintLayer.lastPoints);
+		paintLayer.addCommand(paintLayer.context.stroke, []);
 	},
 
 	mouseDrawPoint: function(paintLayer, button, x, y) {

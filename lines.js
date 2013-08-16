@@ -3,6 +3,7 @@
  */
 drawingToolByName['SmoothCurves'] = {
 	name: 'SmoothCurves',
+	contextColors: 'strokeStyle',
 	paletteMarkup: [
 		palette.colorPaletteMarkup,
 		'<div>'+
@@ -14,8 +15,10 @@ drawingToolByName['SmoothCurves'] = {
 				'<option value="round">round</option>'+
 				'<option value="square">square</option>'+
 			'</select>'+
-			'<label class="label" for="grid_size">Grid Size: </label>'+
-			'<input id="grid_size" type="number" min="0" max="50" value ="0" step="2" oninput="palette.changed(event, \'_gridSpacing\');">'+
+			'<div class="right">'+
+				'<label class="label" for="grid_size">Grid Size: </label>'+
+				'<input id="grid_size" type="number" min="0" max="50" value ="0" step="2" oninput="palette.changed(event, \'_gridSpacing\');">'+
+			'</div>'+
 		'</div>'
 	], 
 	paletteInit: function() {
@@ -23,7 +26,7 @@ drawingToolByName['SmoothCurves'] = {
 		document.getElementById("line_cap").value = paint.contextConfig.lineCap;
 		document.getElementById("drawing_tool").value = paint.getCurrentLayer().getDrawingToolName();
 
-		palette.initColorControl('strokeStyle');
+		palette.initColorControl(this.contextColors);
 	},
 
 	/**
@@ -127,6 +130,7 @@ drawingToolByName['SmoothCurves'] = {
  */
 drawingToolByName['StraightLines'] =  {
 	name: 'StraightLines',
+	contextColors: 'strokeStyle',
 	/* SmoothCurves and StraightLKines use the same palette */
 	paletteMarkup: drawingToolByName['SmoothCurves'].paletteMarkup,
 	paletteInit: drawingToolByName['SmoothCurves'].paletteInit,

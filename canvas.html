@@ -10,6 +10,7 @@
 				border-radius: 20px; border: 2px solid #666; background-color: #999; padding-top:10px;}
 			.hidden {display: none;}
 			.label {margin-top:5px; margin-left:10px;}
+			.right {float:right; margin-right:10px;}
 			.color-table {position:relative;}
 			.color-sep-frame {position:relative; margin-left:10px; margin-right:80px;}
 			.color-sep-container {display:inline-block; width:100%; height:30px; position: relative;} 
@@ -46,7 +47,7 @@
 					<option value="SmoothCurves">SmoothCurves</option>
 					<option value="StraightLines">StraightLines</option>
 				</select>
-				<button onclick="paint.eraseAll();">Erase All</button>
+				<button class="right" onclick="paint.eraseAll();">Erase All</button>
 				<div id="palettePluginContent"></div>
 			</div>
 		</div>

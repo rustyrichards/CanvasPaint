@@ -25,6 +25,12 @@ function logError(err) {
 	log(errorStr);
 };
 
+function cloneOneLevel(obj) {
+	var clone = {};
+	for (var i in obj) clone[i] = obj[i];
+	return clone;
+}
+
 
 /**********
 Tested events
@@ -522,6 +528,11 @@ function PaintLayer(drawingSupportOrSave, opt_context, opt_contextConfig) {
 	 * A working array for the drawing command
 	 */
 	this.scratchCmdArgs = [];
+
+	/**
+	 * If you need closed shapes
+	 */
+	this.startingPoint = [];
 
 	if (drawingSupportOrSave.cmds && drawingSupportOrSave.coordinates) {
 		// Convert the strings back to function pointers
