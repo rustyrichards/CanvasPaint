@@ -147,7 +147,7 @@ capture = {
 //		All members that begin with _ do not get set to the canvas.context
 
 paint = {
-	contextConfig: {lineWidth: 1, strokeStyle: "rgb(0, 0, 0)", lineCap: "butt", _gridSpacing: 0},
+	contextConfig: {lineWidth: 1, strokeStyle: "rgba(0, 0, 0, 1.0)", lineCap: "butt", _gridSpacing: 0},
 	layers: [],
 	currentLayer: -1,
 	canvas: null,
@@ -327,24 +327,31 @@ palette = {
 		'<div class="color-table">'+
 			'<div id="color-sep-frame" class="color-sep-frame">'+
 				'<div class="color-sep-container">'+
-					'<div class="color-sep-bar sep0" tabindex="3" onmousedown="palette.mouseDown(event);">'+
+					'<div id="sep-bar0" class="color-sep-bar sep0" tabindex="3" onmousedown="palette.mouseDown(event);">'+
 						'<div id="sep-slider0" class="color-sep-slider"></div>'+
 					'</div>'+
-					'<input id="color-display0" class="color-sep-sample" type="number" min="0" max="255" value ="1"'+
+					'<input id="color-display0" class="color-sep-sample" type="number" min="0" max="255" value ="0"'+
 					'oninput="palette.colorSepChanged(event);"/>'+
 				'</div>'+
 				'<div class="color-sep-container">'+
-					'<div class="color-sep-bar sep1" tabindex="4" onmousedown="palette.mouseDown(event);">'+
+					'<div id="sep-bar1" class="color-sep-bar sep1" tabindex="4" onmousedown="palette.mouseDown(event);">'+
 						'<div id="sep-slider1" class="color-sep-slider"></div>'+
 					'</div>'+
-					'<input id="color-display1" class="color-sep-sample" type="number" min="0" max="255" value ="1"'+
+					'<input id="color-display1" class="color-sep-sample" type="number" min="0" max="255" value ="0"'+
 					'oninput="palette.colorSepChanged(event);"/>'+
 				'</div>'+
 				'<div class="color-sep-container">'+
-					'<div class="color-sep-bar sep2" tabindex="5" onmousedown="palette.mouseDown(event);">'+
+					'<div id="sep-bar2" class="color-sep-bar sep2" tabindex="5" onmousedown="palette.mouseDown(event);">'+
 						'<div id="sep-slider2" class="color-sep-slider"></div>'+
 					'</div>'+
-					'<input id="color-display2" class="color-sep-sample" type="number" min="0" max="255" value ="1"'+
+					'<input id="color-display2" class="color-sep-sample" type="number" min="0" max="255" value ="0"'+
+					'oninput="palette.colorSepChanged(event);"/>'+
+				'</div>'+
+				'<div class="color-sep-container">'+
+					'<div id="sep-bar3" class="color-sep-bar sep3" tabindex="6" onmousedown="palette.mouseDown(event);">'+
+						'<div id="sep-slider3" class="color-sep-slider"></div>'+
+					'</div>'+
+					'<input id="color-display3" class="color-sep-sample" type="number" min="0" max="1" step="0.005" value ="1"'+
 					'oninput="palette.colorSepChanged(event);"/>'+
 				'</div>'+
 			'</div>'+
@@ -394,12 +401,21 @@ palette = {
 	 */
 	initNewColorProperty: function(colorProperty) {
 		var context = this;
-		paint.contextConfig[colorProperty].replace(/(\d+)\D+(\d+)\D+(\d+)/, function(match, r, g, b) {
-			for (var i=0; i<3; i++) {
-				context.adjustColor(document.getElementById("color-display"+i), 
-						arguments[i+1], i, true);
-			}
-		});
+		var currentColor = paint.contextConfig[colorProperty];
+		if (currentColor) {
+			paint.contextConfig[colorProperty].replace(/(\d+)[^\d\)]+(\d+)[^\d\)]+(\d+)(?:[^\.\d\)]+([\d\.]+))?/, 
+				function(match, r, g, b, a) {
+					var undef;
+					if (undef == arguments[3]) arguments[3] = '1.0';
+					for (var i=0; i<4; i++) {
+						context.adjustColor(document.getElementById("color-display"+i), 
+								arguments[i+1], i, true);
+					}
+				});
+		} else {
+			// Tranparent black
+			for (var i=0; i<4; i++)  context.adjustColor(document.getElementById("color-display"+i), 0, i, true);
+		}
 
 		// Must layout to update the positions.
 		window.setTimeout(this.adjustSlider.bind(this), 0);
@@ -427,19 +443,28 @@ palette = {
 		colorForElement.value = contextColors[0];
 
 	},
+	getSliderColorValue: function(index, pos) {
+		var width = document.getElementById('sep-bar' + index).offsetWidth;
+		var endValue = document.getElementById('color-display' + index).max;
+		if (1 < endValue) {
+			// Integral values
+			endValue = endValue + 0.99;
+			var colorVal =  Math.floor((255.99 * pos) / width);
+		} else {
+			// Use 3 decimal digits.
+			var colorVal =   Math.floor((endValue * pos * 1000.0) / width) / 1000.0;
+		}
+		return colorVal;
+	},
 	mouseDown: function(event) {
 		var el = event.target;
 		capture.set(event, el, {mousemove: palette.mouseMove, touchmove: this.drawOnCanvas}, palette);
 		this.mouseMove(el, el.button, event.layerX, event.layerY);
 	},
 	mouseMove: function(el, button, x, y) {
-		if (el.offsetWidth < x) {
-			debugger;
-		}
-		var colorVal =  Math.floor((255.99 * x) / el.offsetWidth);
 		var index = parseInt(el.className.replace(/[^0-9]*([0-9]).*/, '$1'), 10);
+		var colorVal = this.getSliderColorValue(index, x);
 		var sampleColor = [0,0,0];
-		el.firstElementChild.style.left = x -2 + 'px';
 		var colorDisplay = document.getElementById("color-display"+index);
 		colorDisplay.value = colorVal;
 		this.adjustColor(colorDisplay, colorVal, index);
@@ -460,9 +485,16 @@ palette = {
 				if (!slider.parentNode.offsetWidth) return false;	// Not layed out!
 
 				var sliderPos = parseInt(slider.style.left, 10) + 2;
-				var currentColorVal =  Math.floor((255.99 * sliderPos) / slider.parentNode.offsetWidth);
+				var currentColorVal = this.getSliderColorValue(i, sliderPos);
 				if (currentColorVal != this.colors[i]) {
-					var pos = Math.floor(this.colors[i] * slider.parentNode.offsetWidth / 255.99);
+					var endValue = document.getElementById('color-display' + i).max;
+					if ('string' == typeof endValue) endValue = parseFloat(endValue);
+					if (1 < endValue) {
+						endValue += 0.99;
+						var pos = Math.floor(this.colors[i] * slider.parentNode.offsetWidth / endValue);
+					} else {
+						var pos = Math.floor(this.colors[i] * slider.parentNode.offsetWidth * 1.0 / endValue);
+					}
 					slider.style.left = pos - 2 + "px";
 				}
 			}
@@ -471,18 +503,22 @@ palette = {
 		return false;
 	},
 	adjustColor: function(el, colorVal, index, opt_paletteOnly) {
-		var sampleColor = [0,0,0];
+		if ('string' == typeof colorVal) colorVal = parseFloat(colorVal);
+		var sampleColor = [0,0,0,1.0];
 		sampleColor[index] = this.colors[index] = colorVal;
 		if (el.value != colorVal) el.value = colorVal;
-		el.style.backgroundColor = 'rgb(' + sampleColor[0] + ',' +
-			sampleColor[1] + ',' + sampleColor[2] + ')';
-		var color = 'rgb(' + this.colors[0] + ',' + this.colors[1] + ',' + this.colors[2] + ')';
+		el.style.backgroundColor = 'rgba(' + sampleColor[0] + ',' +
+				sampleColor[1] + ',' + sampleColor[2] + ',' + sampleColor[3] + ')';
+		var color = 'rgba(' + this.colors[0] + ',' + this.colors[1] + ',' +
+				this.colors[2] + ',' + this.colors[3] + ')';
 
 		this.adjustSlider(index);
 
 		document.getElementById("color-display").style.backgroundColor = color;
 		if (!opt_paletteOnly) {
 			var contextConfig = {};
+			// null out transparent colors
+			if (!this.colors[3]) color = null;
 			contextConfig[document.getElementById('color_for').value] = color;
 			paint.setContextConfig(contextConfig, true);
 		}

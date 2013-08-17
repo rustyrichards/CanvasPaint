@@ -148,6 +148,7 @@ drawingToolByName['Shapes Rectangles'] = {
 drawingToolByName['Shapes Circles'] =  {
 	fullCircle: 2.0 * Math.PI,
 	name: 'Shapes Circles',
+	contextColors: ['strokeStyle', 'fillStyle'],
 	/* SmoothCurves and StraightLKines use the same palette */
 	paletteMarkup: drawingToolByName['Shapes Rectangles'].paletteMarkup,
 	paletteInit: drawingToolByName['Shapes Rectangles'].paletteInit,
