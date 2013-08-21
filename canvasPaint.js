@@ -34,8 +34,33 @@ function cloneOneLevel() {
 		for (var property in arguments[i]) clone[property] = arguments[i][property];
 	}
 	return clone;
-}
+};
 
+function anyToString() {
+	var result = '';
+	for (var i=0; i<arguments.length; i++) {
+		var item = arguments[i];
+		if (item) {
+			if (('string' != typeof item) && (0 < item.length)) {
+				// 0 < item.length - non empty and array like 
+				for (var i=0; i<item.length; i++) result += this.makePaletteMarkupString(item[i]);
+			} else if ('function' == typeof item) {
+				// A function call it and send its result through makePaletteMarkupString.
+				result += this.makePaletteMarkupString(item());
+			} else if ('object' == typeof item) {
+				try {
+					result += JSON.stringify(item);
+				} catch (e) {logError(e)}
+			} else {
+				try {
+					result += item.toString(10);
+				} catch (e) {logError(e)}
+			}
+		}
+
+	}
+	return result;
+};
 
 /**********
 Tested events
@@ -45,8 +70,7 @@ Tested events
 capture = {
 	element: null,
 	handlers: {},
-	xOffset: 0,
-	yOffset: 0,
+	offsets: [0, 0],
 
 	set: function(event, element, handlers, opt_context) {
 		event.preventDefault();	// No selecting while capturing!
@@ -54,11 +78,15 @@ capture = {
 		if (event.targetTouches && event.targetTouches.length) {
 			var touch = event.targetTouches[0];
 			if (!event.button) event.button = event.targetTouches.length -1;
-			this.xOffset = touch.screenX - touch.clientX;
-			this.yOffset = touch.screenY - touch.clientY;
+			this.offsets = [
+					touch.screenX - touch.clientX,
+					touch.screenY - touch.clientY
+			];
 		} else {
-			this.xOffset = event.screenX - event.layerX;
-			this.yOffset = event.screenY - event.layerY;
+			this.offsets = [
+				event.screenX - event.layerX,
+				event.screenY - event.layerY
+			];
 		}
 
 		var context = opt_context || window;
@@ -66,23 +94,18 @@ capture = {
 		// hook all on... functions
 		this.handlers = handlers;
 
-		var onmouseupSet = false;
-		for (var i in handlers) {
-			window['on' + i] = function(ev) {capture.eventWrap(ev, context);};
-			if ('mouseup' == i) onmouseupSet = true;
-		}
-		if (!onmouseupSet) {
-			window.onmouseup = function(event) {capture.eventWrap(event);};
-			this.handlers['mouseup'] = true;
+		for (var i in handlers) window['on' + i] = function(ev) {capture.eventWrap(ev, context);};
+		if (!this.handlers['mouseup']) {
+			window.onmouseup = this.handlers['mouseup'] = function(ev) {capture.eventWrap(ev);};
 		}
 		if (!this.handlers['contextmenu']) {
 			// Prevent the context menu
-			window.oncontextmenu =  function (evt) {evt.preventDefault();};
-			this.handlers['contextmenu'] = true;
+			window.oncontextmenu = this.handlers['contextmenu'] = function (ev) {ev.preventDefault();};
 		}
 
 		this.element = element;
 
+		// Add the class for any capture set stying.
 		if (-1 == this.element.className.search(/\bcapturing\b/)) {
 			this.element.className = this.element.className + ' capturing';
 		}
@@ -95,24 +118,22 @@ capture = {
 			this.element.className = this.element.className.replace(/\s*\bcapturing\b/, '');
 		}
 		this.element = null;
-		xOffset = yOffset = -1;
+		this.offsets = [0, 0];
 	},
 	adjustXAndY: function(x, y) {
+		var result = Array.prototype.slice.call(arguments, 0);
+		var properties = ['offsetWidth', 'offsetHeight'];
 		if (this.element) {
-			x -= this.xOffset;
-			if (0 > x) {
-				x = 0;
-			} else if (x > this.element.offsetWidth) {
-				x = this.element.offsetWidth;
-			}
-			y -= this.yOffset;
-			if (0 > y) {
-				y = 0;
-			} else if (y > this.element.offsetHeight) {
-				y = this.element.offsetHeight;
+			for (var i=0; i<2; i++) {
+				result[i] -= this.offsets[i];
+				if (0 > result[i]) {
+					result[i] = 0;
+				} else if (result[i] > this.element[properties[i]]) {
+					result[i] = this.element[properties[i]];
+				}
 			}
 		}
-		return [x, y];
+		return result;
 	},
 	eventWrap: function(event, opt_context) {
 		var x = event.screenX;
@@ -123,7 +144,7 @@ capture = {
 			x = touch.screenX;
 			y = touch.screenY;
 		}
-		var coord = ('layerX' in event) ? this.adjustXAndY(x, y) : [0, 0];
+		var coord = this.adjustXAndY(x, y);
 		var button = event.button || 0;
 		try {
 			if (opt_context) this.handlers[event.type].call(opt_context, this.element, button, coord[0], coord[1]);
@@ -134,7 +155,7 @@ capture = {
 		}
 		event.preventDefault();
 
-		if ('mouseup' == event.type && 0 == event.button) {
+		if ('mouseup' == event.type && 0 === event.button) {
 			this.clear();
 		}
 	},
@@ -358,23 +379,7 @@ palette = {
 			'<div id="color-display" class="color-sep-sample large"></div>'+
 		'</div>',
 
-	makePaletteMarkupString: function(item) {
-		var markup = '';
-		if (item) {
-			if (('string' != typeof item) && (0 < item.length)) {
-				// 0 < item.length - non empty and array like 
-				for (var i=0; i<item.length; i++) markup += this.makePaletteMarkupString(item[i]);
-			} else if ('function' == typeof item) {
-				// A function call it and send its result through makePaletteMarkupString.
-				markup += this.makePaletteMarkupString(item());
-			} else {
-				try {
-					markup += item.toString(10);
-				} catch (e) {logError(e)}
-			}
-		}
-		return markup;
-	},
+	makePaletteMarkupString: anyToString,
 
 	resetForDrawingTool: function(drawintToolName) {
 		try {
@@ -446,12 +451,14 @@ palette = {
 	getSliderColorValue: function(index, pos) {
 		var width = document.getElementById('sep-bar' + index).offsetWidth;
 		var endValue = document.getElementById('color-display' + index).max;
+		if ('string' == typeof endValue) endValue = parseFloat(endValue);
 		if (1 < endValue) {
 			// Integral values
-			endValue = endValue + 0.99;
+			endValue += 0.99;
 			var colorVal =  Math.floor((255.99 * pos) / width);
 		} else {
 			// Use 3 decimal digits.
+			endValue += 0.00099;
 			var colorVal =   Math.floor((endValue * pos * 1000.0) / width) / 1000.0;
 		}
 		return colorVal;
@@ -480,7 +487,7 @@ palette = {
 		// The palette may not exist!
 		if (document.getElementById('color-sep-frame')) {
 			var i = opt_index || 0;
-			for (var i = opt_index || 0; i <= (opt_index || 2); i++ ) {
+			for (var i = opt_index || 0; i <= (opt_index || 3); i++ ) {
 				var slider = document.getElementById("sep-slider" + i);
 				if (!slider.parentNode.offsetWidth) return false;	// Not layed out!
 
