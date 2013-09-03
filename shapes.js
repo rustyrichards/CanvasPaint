@@ -2,7 +2,7 @@
  * Draw smooth curves using besier, quadratic, or line as appropriate.
  */
 if (drawingToolByName['Lines Smooth']) {
-	drawingToolByName['Shapes Smooth'] = cloneOneLevel(drawingToolByName['Lines Smooth'], {
+	drawingToolByName['Shapes Smooth'] = r.cloneOneLevel(drawingToolByName['Lines Smooth'], {
 		name: 'Shapes Smooth',
 		contextColors: ['strokeStyle', 'fillStyle'],
 		baseMouseDown: drawingToolByName['Lines Smooth']['mouseDown'],
@@ -45,7 +45,7 @@ if (drawingToolByName['Lines Smooth']) {
 }
 
 if (drawingToolByName['Lines Straight']) {
-	drawingToolByName['Shapes Straight'] = cloneOneLevel(drawingToolByName['Lines Straight'], {
+	drawingToolByName['Shapes Straight'] = r.cloneOneLevel(drawingToolByName['Lines Straight'], {
 		name: 'Shapes Straight',
 		contextColors: ['strokeStyle', 'fillStyle'],
 		baseMouseDown: drawingToolByName['Lines Straight']['mouseDown'],

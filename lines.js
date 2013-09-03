@@ -21,6 +21,8 @@ drawingToolByName['Lines Smooth'] = {
 			'</div>'+
 		'</div>'
 	], 
+	paletteCfg: palette.colorPaletteCfg,
+
 	paletteInit: function() {
 		document.getElementById("line_width").value = paint.contextConfig.lineWidth;
 		document.getElementById("line_cap").value = paint.contextConfig.lineCap;
@@ -133,6 +135,7 @@ drawingToolByName['Lines Straight'] =  {
 	contextColors: 'strokeStyle',
 	/* SmoothCurves and StraightLKines use the same palette */
 	paletteMarkup: drawingToolByName['Lines Smooth'].paletteMarkup,
+	paletteCfg: drawingToolByName['Lines Smooth'].colorPaletteCfg,
 	paletteInit: drawingToolByName['Lines Smooth'].paletteInit,
 
 

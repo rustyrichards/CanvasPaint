@@ -3,64 +3,9 @@ canvasPaint.js
 	This is the framework for the canvas based paint component.  The paint tools are implemented by plugins.
 **********/
 
+r = RustyTools;
+
 drawingToolByName = {};
-
-function log() {
-	if (console && console.log) {
-		for (var i =0; i<arguments.length; i++) console.log(arguments[i]);
-	}
-}
-
-function logError(err) {
-	var errorStr = '';
-	if (err.message) {
-		errorStr = err.message
-	} else if (err.toString) {
-		errorStr = err.toString();
-	}
-	if (err.fileName) errorStr += '  FileName: ' + err.fileName;
-	if (err.lineNumber) errorStr += '  Line: ' + err.lineNumber;
-	if (err.columnNumber) errorStr += '  Col: ' + err.columnNumber;
-
-	log(errorStr);
-};
-
-/**
- * In cloneOneLevel later arguments will override earlier ones.
- */
-function cloneOneLevel() {
-	var clone = {};
-	for (var i=0; i<arguments.length; i++) {
-		for (var property in arguments[i]) clone[property] = arguments[i][property];
-	}
-	return clone;
-};
-
-function anyToString() {
-	var result = '';
-	for (var i=0; i<arguments.length; i++) {
-		var item = arguments[i];
-		if (item) {
-			if (('string' != typeof item) && (0 < item.length)) {
-				// 0 < item.length - non empty and array like 
-				for (var i=0; i<item.length; i++) result += this.makePaletteMarkupString(item[i]);
-			} else if ('function' == typeof item) {
-				// A function call it and send its result through makePaletteMarkupString.
-				result += this.makePaletteMarkupString(item());
-			} else if ('object' == typeof item) {
-				try {
-					result += JSON.stringify(item);
-				} catch (e) {logError(e)}
-			} else {
-				try {
-					result += item.toString(10);
-				} catch (e) {logError(e)}
-			}
-		}
-
-	}
-	return result;
-};
 
 /**********
 Tested events
@@ -347,39 +292,33 @@ palette = {
 		'</div>'+
 		'<div class="color-table">'+
 			'<div id="color-sep-frame" class="color-sep-frame">'+
-				'<div class="color-sep-container">'+
-					'<div id="sep-bar0" class="color-sep-bar sep0" tabindex="3" onmousedown="palette.mouseDown(event);">'+
-						'<div id="sep-slider0" class="color-sep-slider"></div>'+
+				'<#colorSeparation>'+
+					'<div class="color-sep-container">'+
+						'<div id="sep-bar<#colorIndex/>" class="color-sep-bar sep<#colorIndex/>" tabindex="<+tabIndex/>" onmousedown="palette.mouseDown(event);">'+
+							'<div id="sep-slider<#colorIndex/>" class="color-sep-slider"></div>'+
+						'</div>'+
+						'<input id="color-display<+colorIndex/>" class="color-sep-sample" type="number" min="<#min/>" max="<#max/>" value ="<#start/>"'+
+						'oninput="palette.colorSepChanged(event);"/>'+
 					'</div>'+
-					'<input id="color-display0" class="color-sep-sample" type="number" min="0" max="255" value ="0"'+
-					'oninput="palette.colorSepChanged(event);"/>'+
-				'</div>'+
-				'<div class="color-sep-container">'+
-					'<div id="sep-bar1" class="color-sep-bar sep1" tabindex="4" onmousedown="palette.mouseDown(event);">'+
-						'<div id="sep-slider1" class="color-sep-slider"></div>'+
-					'</div>'+
-					'<input id="color-display1" class="color-sep-sample" type="number" min="0" max="255" value ="0"'+
-					'oninput="palette.colorSepChanged(event);"/>'+
-				'</div>'+
-				'<div class="color-sep-container">'+
-					'<div id="sep-bar2" class="color-sep-bar sep2" tabindex="5" onmousedown="palette.mouseDown(event);">'+
-						'<div id="sep-slider2" class="color-sep-slider"></div>'+
-					'</div>'+
-					'<input id="color-display2" class="color-sep-sample" type="number" min="0" max="255" value ="0"'+
-					'oninput="palette.colorSepChanged(event);"/>'+
-				'</div>'+
-				'<div class="color-sep-container">'+
-					'<div id="sep-bar3" class="color-sep-bar sep3" tabindex="6" onmousedown="palette.mouseDown(event);">'+
-						'<div id="sep-slider3" class="color-sep-slider"></div>'+
-					'</div>'+
-					'<input id="color-display3" class="color-sep-sample" type="number" min="0" max="1" step="0.005" value ="1"'+
-					'oninput="palette.colorSepChanged(event);"/>'+
-				'</div>'+
+				'</#colorSeparation>'+
 			'</div>'+
 			'<div id="color-display" class="color-sep-sample large"></div>'+
 		'</div>',
 
-	makePaletteMarkupString: anyToString,
+	colorPaletteCfg: {
+		tabIndex: 3, colorIndex: 0, colorSeparation: [
+			{min: 0, max: 255, step: 1, start: 0},
+			{min: 0, max: 255, step: 1, start: 0},
+			{min: 0, max: 255, step: 1, start: 0},
+			{min: 0, max: 1, step: 0.005, start: 1}
+		]
+	},
+
+	makePaletteMarkupString: function(markup, replaceObj) {
+		var str = r.Str.toString(markup);
+		if (replaceObj) str = r.Str.mulitReplaceCleanup(r.Str.multiReplace(str, replaceObj));
+		return str;
+	},
 
 	resetForDrawingTool: function(drawintToolName) {
 		try {
@@ -395,9 +334,10 @@ palette = {
 			var toolName = (layer) ? layer.getDrawingToolName() : '';
 			drawingToolElement.value = toolName
 
-			document.getElementById('palettePluginContent').innerHTML = this.makePaletteMarkupString(tool.paletteMarkup);
+			document.getElementById('palettePluginContent').innerHTML = 
+				this.makePaletteMarkupString(tool.paletteMarkup, tool.paletteCfg);
 			tool.paletteInit();
-		} catch (e) {logError(e)}
+		} catch (e) {r.logException(e)}
 
 	},
 
@@ -711,7 +651,7 @@ PaintLayer.prototype.undo = function() {
 	if (this.drawingTool.undo) {
 		try {
 			this.drawingTool.undo(this);
-		} catch (e) {logError(e)}
+		} catch (e) {r.logException(e)}
 	} else 	if (this.cmds.length) {
 		this.undoCmds.push(this.cmds.pop());
 		this.undoCoordinates.push(this.coordinates.pop());
@@ -724,7 +664,7 @@ PaintLayer.prototype.redo = function() {
 	if (this.drawingTool.redo) {
 		try {
 			this.drawingTool.redo(this);
-		} catch (e) {logError(e)}
+		} catch (e) {r.logException(e)}
 	} else if (this.undoCmds.length) {
 		this.cmds.push(this.undoCmds.pop());
 		this.coordinates.push(this.undoCoordinates.pop());
